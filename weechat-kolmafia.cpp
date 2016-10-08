@@ -14,6 +14,8 @@ WEECHAT_PLUGIN_DESCRIPTION("uses kolmafia's session to interface with Kingdom of
 WEECHAT_PLUGIN_VERSION("0.1")
 WEECHAT_PLUGIN_LICENSE("GPL3")
 
+#define URL(PAGE) "http://127.0.0.1:60080/" PAGE
+
 namespace
 {
   weechat_kolmafia::plugin *plugin_singleton = nullptr;
@@ -62,9 +64,13 @@ namespace weechat_kolmafia
     set_poll_delay(3000);
 
     dbg = weechat_buffer_new("debug", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+    weechat_buffer_set(dbg, "notify", "0");
     get_channel_buffer("talkie");
     get_channel_buffer("clan");
     get_channel_buffer("games");
+
+#define HOOK_COMMAND(CMD, DESC, ARGS, ARGS_DESC, COMPLETION) weechat_hook_command(#CMD, DESC, ARGS, ARGS_DESC, COMPLETION, plugin::CMD##_command_aux, this, nullptr);
+    HOOK_COMMAND(who, "Gets a list of players in the current channel", "", "", "")
   }
 
   plugin::~plugin()
@@ -93,6 +99,20 @@ namespace weechat_kolmafia
     (void) data;
     (void) remaining_calls;
     return plug->poll_messages();
+  }
+
+  // commands
+#define COMMAND_FUNCTION(CMD) int plugin::CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol) { plugin *plug = (plugin *) ptr; return plug->CMD##_command(weebuf, argc, argv, argv_eol); } int plugin::CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol)
+  COMMAND_FUNCTION(me)
+  {
+    return WEECHAT_RC_OK;
+  }
+
+  COMMAND_FUNCTION(who)
+  {
+    std::string message("/who ");
+    message += weechat_buffer_get_string(weebuf, "name");
+    return submit_message(message);
   }
  
   // private
@@ -190,6 +210,8 @@ namespace weechat_kolmafia
     std::string name(msg["name"].asString());
     for(auto it = name.begin(); it != name.end(); ++it)
       tags += (*it == ' ' ? '+' : *it);
+    if(msg["type"].asString() == "event")
+      buf = get_channel_buffer("events"); // TODO: Make this not a channel buffer
     weechat_printf_date_tags(buf, when, tags.c_str(), "%s\t%s", sender.c_str(), body.c_str());
   }
 
@@ -286,7 +308,7 @@ namespace weechat_kolmafia
   {
     update_session();
 
-    std::string url("http://127.0.0.1:60080/newchatmessages.php?aa=");
+    std::string url(URL("newchatmessages.php?aa="));
     url += std::to_string(distribution(generator));
     url += "&j=1&lasttime=";
     url += lastSeen;

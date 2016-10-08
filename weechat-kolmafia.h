@@ -25,6 +25,11 @@ namespace weechat_kolmafia
       static int close_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
       static int poll_callback(const void *ptr, void *data, int remaining_calls);
 
+      // commands
+#define COMMAND_DECLARATION(CMD) static int CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol); int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
+      COMMAND_DECLARATION(me)
+      COMMAND_DECLARATION(who)
+
     private:
       struct t_weechat_plugin *weechat_plugin;
       std::string lastSeen;
