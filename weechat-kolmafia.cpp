@@ -224,30 +224,40 @@ namespace weechat_kolmafia
     }
   }
 
-  int plugin::handle_input(struct t_gui_buffer *weebuf, const char *input_data)
+  std::string plugin::url_encode(const std::string &text)
   {
-    std::string url("http://127.0.0.1:60080/submitnewchat.php?playerid=");
+    static const std::string safe_chars(
+        "0123456789-_.!~*'()"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz");
+    const char * hex = "0123456789ABCDEF";
+
+    std::string encoded;
+    for(auto it = text.begin(); it != text.end(); ++it)
+    {
+      char c = *it;
+      if(c == ' ')
+        encoded += '+';
+      else if(safe_chars.find(c) != std::string::npos)
+        encoded += c;
+      else
+      {
+        encoded += '%';
+        encoded += hex[(c >> 4) & 0xF];
+        encoded += hex[c & 0xF];
+      }
+    }
+    return encoded;
+  }
+
+  int plugin::submit_message(const std::string &message)
+  {
+    std::string url(URL("submitnewchat.php?playerid="));
     url += std::to_string(weechat_config_integer(conf.session.playerid));
     url += "&pwd=";
     url += weechat_config_string(conf.session.hash);
-    url += "&graf=%2F";
-    url += weechat_buffer_get_string(weebuf, "name");
-    url += "+";
-    std::string input(input_data);
-    for(auto it = input.begin(); it != input.end(); ++it)
-    {
-      if((*it >= '0' && *it <= '9') || (*it >= 'A' && *it <= 'Z') || (*it >= 'a' && *it <= 'z'))
-        url += *it;
-      else if(*it == ' ')
-        url += '+';
-      else
-      {
-        // encode as hex
-        url += '%';
-        url += to_hex((*it) / 16);
-        url += to_hex((*it) % 16);
-      }
-    }
+    url += "&graf=";
+    url += url_encode(message);
     url += "&j=1";
 
     std::string buffer;
@@ -255,6 +265,16 @@ namespace weechat_kolmafia
       return WEECHAT_RC_ERROR;
 
     return WEECHAT_RC_OK;
+  }
+
+  int plugin::handle_input(struct t_gui_buffer *weebuf, const char *input_data)
+  {
+    std::string message("/");
+    message += weechat_buffer_get_string(weebuf, "name");
+    message += " ";
+    message += input_data;
+
+    return submit_message(message);
   }
 
   int plugin::handle_close(struct t_gui_buffer *weebuf)

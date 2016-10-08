@@ -36,6 +36,8 @@ namespace weechat_kolmafia
 
       void update_session();
 
+      std::string url_encode(const std::string &text);
+      int submit_message(const std::string &message);
       int handle_input(struct t_gui_buffer *weebuf, const char *input_data);
       int handle_close(struct t_gui_buffer *weebuf);
       int poll_messages();
