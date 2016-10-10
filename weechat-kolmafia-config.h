@@ -34,6 +34,13 @@ namespace weechat_kolmafia
         struct t_config_option *lastloaded;
       } session;
 
+      struct // cli section
+      {
+        struct t_config_section *section;
+
+        struct t_config_option *message_blacklist;
+      } cli;
+
     private:
       struct t_weechat_plugin *weechat_plugin;
   };

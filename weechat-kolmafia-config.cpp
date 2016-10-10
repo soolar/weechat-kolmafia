@@ -64,7 +64,7 @@ namespace weechat_kolmafia
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     session.playername = weechat_config_new_option(
         file, session.section,
-        "playernam", "string",
+        "playername", "string",
         N_("your player name, can be automatically detected via the accompanying ash script"),
         nullptr, 0, 0, "UNSET", nullptr, 0,
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
@@ -73,6 +73,27 @@ namespace weechat_kolmafia
         "lastloaded", "integer",
         N_("the last time that the other session data was loaded, for use with the accompanying ash script"),
         nullptr, 0, INT_MAX, "0", nullptr, 0,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    // cli
+    cli.section = weechat_config_new_section(file, "cli",
+        0, 0,
+        nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr);
+    if(!cli.section)
+    {
+      weechat_config_free(file);
+      exit(1);
+    }
+
+    cli.message_blacklist = weechat_config_new_option(
+        file, cli.section,
+        "message_blacklist", "string",
+        N_("~ delimited list of phrases which will make a message not show up in the cli"),
+        nullptr, 0, 0, "<br><b>Players in channel", nullptr, 0,
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
   }
 
