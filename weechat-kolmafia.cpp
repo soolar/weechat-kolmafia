@@ -1,5 +1,6 @@
 #include "weechat-kolmafia.h"
 #include "weechat-kolmafia-config.h"
+#include "weechat-kolmafia-channel.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -57,7 +58,7 @@ namespace weechat_kolmafia
 {
   // public
   plugin::plugin(struct t_weechat_plugin *plug)
-    : weechat_plugin(plug), conf(plug), distribution(0.0, 1.0), poll_hook(nullptr), delay(0), be_good(true)
+    : weechat_plugin(plug), conf(new plugin::config(plug)), distribution(0.0, 1.0), poll_hook(nullptr), delay(0), be_good(true)
   {
     update_session();
 
@@ -68,20 +69,20 @@ namespace weechat_kolmafia
     events = weechat_buffer_new("events", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     cli = weechat_buffer_new("mafia", input_cli_callback, this, nullptr, close_cli_callback, this, nullptr);
     weechat_buffer_set(dbg, "notify", "0");
-    get_channel_buffer("talkie");
-    get_channel_buffer("clan");
+    get_channel("clan");
 
     set_poll_delay(3000);
     poll_cli_hook = weechat_hook_timer(1000, 1, 0, poll_cli_callback, this, nullptr);
     update_nicklists_hook = weechat_hook_timer(60000, 60, 0, update_nicklists_callback, this, nullptr);
 
 #define HOOK_COMMAND(CMD, DESC, ARGS, ARGS_DESC, COMPLETION) weechat_hook_command(#CMD, DESC, ARGS, ARGS_DESC, COMPLETION, plugin::CMD##_command_aux, this, nullptr);
-    HOOK_COMMAND(who, "Gets a list of players in the current channel", "", "", "")
   }
 
   plugin::~plugin()
   {
     be_good = false;
+
+    delete conf;
 
     weechat_unhook(poll_hook);
     weechat_unhook(poll_cli_hook);
@@ -90,13 +91,6 @@ namespace weechat_kolmafia
   }
 
   // callbacks
-  int plugin::input_channel_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data)
-  {
-    plugin *plug = (plugin *) ptr;
-    (void) data;
-    return plug->handle_input_channel(weebuf, input_data);
-  }
-
   int plugin::input_whisper_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data)
   {
     plugin *plug = (plugin *) ptr;
@@ -109,13 +103,6 @@ namespace weechat_kolmafia
     plugin *plug = (plugin *) ptr;
     (void) data;
     return plug->handle_input_cli(weebuf, input_data);
-  }
-
-  int plugin::close_channel_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf)
-  {
-    plugin *plug = (plugin *) ptr;
-    (void) data;
-    return plug->handle_close_channel(weebuf);
   }
 
   int plugin::close_whisper_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf)
@@ -160,13 +147,6 @@ namespace weechat_kolmafia
 #define COMMAND_FUNCTION(CMD) int plugin::CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol) { plugin *plug = (plugin *) ptr; return plug->CMD##_command(weebuf, argc, argv, argv_eol); } int plugin::CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol)
   COMMAND_FUNCTION(me)
   {
-    return WEECHAT_RC_OK;
-  }
-
-  COMMAND_FUNCTION(who)
-  {
-    update_nicklist(weebuf);
-
     return WEECHAT_RC_OK;
   }
 
@@ -366,8 +346,8 @@ namespace weechat_kolmafia
           break;
       }
 
-      struct t_gui_buffer *buf = get_channel_buffer(channel.c_str());
-      weechat_printf_date_tags(buf, when, tags.c_str(), "%s\t%s", sender.c_str(), parsed.c_str());
+      auto chan = get_channel(channel.c_str());
+      chan->write_message(when, sender, parsed, tags);
     }
     else if(type == "private")
     {
@@ -382,12 +362,12 @@ namespace weechat_kolmafia
 
   void plugin::update_session()
   {
-    std::string fileName(weechat_config_string(conf.mafia.location));
+    std::string fileName(weechat_config_string(conf->mafia.location));
     fileName += "/data/weechat.txt";
     struct stat t_stat;
     stat(fileName.c_str(), &t_stat);
     time_t editted = t_stat.st_ctime;
-    time_t known = weechat_config_integer(conf.session.lastloaded);
+    time_t known = weechat_config_integer(conf->session.lastloaded);
 
     if(known < editted)
     {
@@ -399,14 +379,14 @@ namespace weechat_kolmafia
         std::istream is(&fb);
         std::string line;
         std::getline(is, line);
-        weechat_config_option_set(conf.session.hash, line.c_str() + 2, 0);
+        weechat_config_option_set(conf->session.hash, line.c_str() + 2, 0);
         std::getline(is, line);
-        weechat_config_option_set(conf.session.playerid, line.c_str() + 2, 0);
+        weechat_config_option_set(conf->session.playerid, line.c_str() + 2, 0);
         std::getline(is, line);
-        weechat_config_option_set(conf.session.playername, line.c_str() + 2, 0);
+        weechat_config_option_set(conf->session.playername, line.c_str() + 2, 0);
         char timestamp[1024]; // a 64 bit integer can be 19 digits at most, so 1024 should definitely be enough room
         sprintf(timestamp, "%ld", editted);
-        weechat_config_option_set(conf.session.lastloaded, timestamp, 0);
+        weechat_config_option_set(conf->session.lastloaded, timestamp, 0);
       }
     }
   }
@@ -463,9 +443,9 @@ namespace weechat_kolmafia
     update_session();
 
     std::string url(URL("submitnewchat.php?playerid="));
-    url += std::to_string(weechat_config_integer(conf.session.playerid));
+    url += std::to_string(weechat_config_integer(conf->session.playerid));
     url += "&pwd=";
-    url += weechat_config_string(conf.session.hash);
+    url += weechat_config_string(conf->session.hash);
     url += "&graf=";
     url += url_encode(message);
     url += "&j=1";
@@ -476,34 +456,6 @@ namespace weechat_kolmafia
     return WEECHAT_RC_OK;
   }
 
-  int plugin::handle_input_channel(struct t_gui_buffer *weebuf, const char *input_data)
-  {
-    std::string message("/");
-    if(input_data[0] != ';')
-    {
-      message += weechat_buffer_get_string(weebuf, "name");
-      message += " ";
-    }
-    else
-    {
-      input_data += 1;
-    }
-    message += input_data;
-
-    std::string buffer;
-    if(submit_message(message, buffer) == WEECHAT_RC_ERROR)
-      return WEECHAT_RC_ERROR;
-
-    //weechat_printf(dbg,"%s",buffer.c_str());
-    Json::Value v;
-    Json::Reader r;
-    r.parse(buffer, v);
-    std::string output = v["output"].asString();
-    if(!output.empty())
-      weechat_printf(weebuf, "%s", html_to_weechat(output).c_str());
-    return WEECHAT_RC_OK;
-  }
-
   int plugin::handle_input_whisper(struct t_gui_buffer *weebuf, const char *input_data)
   {
     std::string message("/msg ");
@@ -511,7 +463,7 @@ namespace weechat_kolmafia
     message += " ";
     message += input_data;
 
-    weechat_printf(weebuf, "%s\t%s", weechat_config_string(conf.session.playername), input_data);
+    weechat_printf(weebuf, "%s\t%s", weechat_config_string(conf->session.playername), input_data);
 
     std::string buffer;
     return submit_message(message, buffer);
@@ -522,15 +474,9 @@ namespace weechat_kolmafia
     std::string url(URL("/KoLmafia/submitCommand?cmd="));
     url += url_encode(input_data);
     url += "&pwd=";
-    url += weechat_config_string(conf.session.hash);
+    url += weechat_config_string(conf->session.hash);
     std::string buffer;
     return http_request(url, buffer);
-  }
-
-  int plugin::handle_close_channel(struct t_gui_buffer *weebuf)
-  {
-    channels.erase(weechat_buffer_get_string(weebuf, "name"));
-    return WEECHAT_RC_OK;
   }
 
   int plugin::handle_close_whisper(struct t_gui_buffer *weebuf)
@@ -578,14 +524,14 @@ namespace weechat_kolmafia
     update_session();
 
     std::string url(URL("KoLmafia/messageUpdate?pwd="));
-    url += weechat_config_string(conf.session.hash);
+    url += weechat_config_string(conf->session.hash);
 
     std::string res;
     if(http_request(url, res) == WEECHAT_RC_ERROR)
       return WEECHAT_RC_ERROR;
     if(!res.empty() && res != " ")
     {
-      std::istringstream ss(weechat_config_string(conf.cli.message_blacklist));
+      std::istringstream ss(weechat_config_string(conf->cli.message_blacklist));
       std::string blacklisted;
       while(std::getline(ss, blacklisted, '~'))
       {
@@ -605,7 +551,7 @@ namespace weechat_kolmafia
   {
     for(auto it = channels.begin(); it != channels.end(); ++it)
     {
-      update_nicklist(it->second);
+      it->second->update_nicklist();
     }
     
     return WEECHAT_RC_OK;
@@ -625,94 +571,15 @@ namespace weechat_kolmafia
     return WEECHAT_RC_OK;
   }
 
-  void plugin::update_nicklist(struct t_gui_buffer *channel)
+  plugin::channel *plugin::get_channel(const std::string &name)
   {
-    std::string message("/who ");
-    message += weechat_buffer_get_string(channel, "name");
-    std::string res;
-    if(submit_message(message, res) == WEECHAT_RC_OK)
+    auto it = channels.find(name);
+    if(it == channels.end())
     {
-      weechat_nicklist_remove_all(channel);
-      weechat_nicklist_add_group(channel, nullptr, "1|friends", "blue,0", 1);
-      weechat_nicklist_add_group(channel, nullptr, "2|clannies", "green,0", 1);
-      weechat_nicklist_add_group(channel, nullptr, "3|others", "bar_fg,0", 1);
-      weechat_nicklist_add_group(channel, nullptr, "4|away", "11,0", 1);
-
-      Json::Value v;
-      Json::Reader r;
-      r.parse(res, v);
-      std::string output = v["output"].asString();
-
-      htmlcxx::HTML::ParserDom parser;
-      tree<htmlcxx::HTML::Node> dom = parser.parseTree(output);
-
-      bool nextIsFriend = false;
-      bool nextIsAway = false;
-      bool nextIsName = false;
-
-      for(auto it = dom.begin(); it != dom.end(); ++it)
-      {
-        /*
-        std::ostringstream debugprint;
-        debugprint << weechat_color("red") << "tag[" << weechat_color("resetcolor") <<
-          it->tagName() << weechat_color("red") << "] " << weechat_color("green") <<
-          "text[" << weechat_color("resetcolor") << it->text() << weechat_color("green") <<
-          "] " << weechat_color("blue") << "closing[" << weechat_color("resetcolor") <<
-          it->closingText() << weechat_color("blue") << "]";
-        std::string debugprintfinal(debugprint.str());
-        weechat_printf(dbg, "%s", debugprintfinal.c_str());
-        //*/
-        if(it->isTag())
-        {
-          if(it->tagName() == "font")
-          {
-            it->parseAttributes();
-            auto color = it->attribute("color");
-            if(color.first)
-            {
-              if(color.second == "blue")
-                nextIsFriend = true;
-            }
-            nextIsName = true;
-          }
-          else if(it->tagName() == "a")
-          {
-            it->parseAttributes();
-            auto cls = it->attribute("class");
-            if(cls.first && cls.second == "afk")
-              nextIsAway = true;
-          }
-        }
-        else if(nextIsName)
-        {
-          const char *group_name = "others";
-          if(nextIsFriend) group_name = "friends";
-          if(nextIsAway) group_name = "away";
-          struct t_gui_nick_group *group = weechat_nicklist_search_group(channel, nullptr, group_name);
-          if(group != nullptr)
-          {
-            auto nick = weechat_nicklist_add_nick(channel, group, it->text().c_str(), "bar_fg", "", "", 1);
-            if(nick == nullptr) weechat_printf(channel, "Problem adding nick %s to group %s", it->text().c_str(), group_name);
-          }
-          else weechat_printf(channel, "Something got messed bruh [%s][%s]",group_name,it->text().c_str());
-
-          nextIsName = nextIsAway = nextIsFriend = false;
-        }
-      }
+      auto p = channels.insert(std::make_pair(name, new channel(this, name)));
+      return p.first->second;
     }
-  }
-
-  struct t_gui_buffer *plugin::get_channel_buffer(const std::string &channel)
-  {
-    struct t_gui_buffer *buf = weechat_buffer_search("kol", channel.c_str());
-    if(buf == nullptr)
-    {
-      buf = weechat_buffer_new(channel.c_str(), input_channel_callback, this, nullptr, close_channel_callback, this, nullptr);
-      weechat_buffer_set(buf, "nicklist", "1");
-      channels[channel] = buf;
-      update_nicklist(buf);
-    }
-    return buf;
+    return it->second;
   }
 
   struct t_gui_buffer *plugin::get_whisper_buffer(const std::string &name)

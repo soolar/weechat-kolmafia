@@ -2,7 +2,6 @@
 #define WEECHAT_KOLMAFIA_H
 
 #include "weechat-plugin.h"
-#include "weechat-kolmafia-config.h"
 #include "json/json.h"
 #include <random>
 #include <map>
@@ -22,10 +21,8 @@ namespace weechat_kolmafia
       ~plugin();
 
       // callbacks
-      static int input_channel_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data);
       static int input_whisper_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data);
       static int input_cli_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data);
-      static int close_channel_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
       static int close_whisper_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
       static int close_cli_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
       static int poll_callback(const void *ptr, void *data, int remaining_calls);
@@ -35,17 +32,19 @@ namespace weechat_kolmafia
       // commands
 #define COMMAND_DECLARATION(CMD) static int CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol); int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
       COMMAND_DECLARATION(me)
-      COMMAND_DECLARATION(who)
 
     private:
+      class channel;
+      class config;
+
       struct t_weechat_plugin *weechat_plugin;
       std::string lastSeen;
       struct t_gui_buffer *dbg;
       struct t_gui_buffer *events;
       struct t_gui_buffer *cli;
-      config conf;
+      config *conf;
       std::map<std::string, std::string> name_deuniquifies;
-      std::map<std::string, struct t_gui_buffer *> channels;
+      std::map<std::string, channel*> channels;
       std::map<std::string, struct t_gui_buffer *> whispers;
 
       int http_request(const std::string &url, std::string &outbuf);
@@ -58,10 +57,8 @@ namespace weechat_kolmafia
       std::string name_deuniquify(const std::string &name);
       std::string html_to_weechat(const std::string &html);
       int submit_message(const std::string &message, std::string &outbuf);
-      int handle_input_channel(struct t_gui_buffer *weebuf, const char *input_data);
       int handle_input_whisper(struct t_gui_buffer *weebuf, const char *input_data);
       int handle_input_cli(struct t_gui_buffer *weebuf, const char *input_data);
-      int handle_close_channel(struct t_gui_buffer *weebuf);
       int handle_close_whisper(struct t_gui_buffer *weebuf);
       int handle_close_cli(struct t_gui_buffer *weebuf);
       int poll_messages();
@@ -69,9 +66,8 @@ namespace weechat_kolmafia
 
       int set_poll_delay(long newdelay);
 
-      void update_nicklist(struct t_gui_buffer *weebuf);
       int update_all_nicklists();
-      struct t_gui_buffer *get_channel_buffer(const std::string &channel);
+      channel *get_channel(const std::string &channel);
       struct t_gui_buffer *get_whisper_buffer(const std::string &name);
       struct t_hook *poll_hook;
       struct t_hook *poll_cli_hook;

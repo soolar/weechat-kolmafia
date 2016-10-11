@@ -8,7 +8,7 @@
 
 namespace weechat_kolmafia
 {
-  config::config(struct t_weechat_plugin *plug)
+  plugin::config::config(struct t_weechat_plugin *plug)
     : weechat_plugin(plug)
   {
     file = weechat_config_new(KOL_CONFIG_NAME, nullptr, nullptr, nullptr);
@@ -97,14 +97,17 @@ namespace weechat_kolmafia
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
   }
 
-  config::~config()
+  // TODO: These functions should probably do something...
+  plugin::config::~config()
   {
   }
-  int config::reload()
+
+  int plugin::config::reload()
   {
     return 1;
   }
-  int config::write()
+
+  int plugin::config::write()
   {
     return 1;
   }

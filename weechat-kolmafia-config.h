@@ -5,9 +5,11 @@
 
 #define KOL_CONFIG_NAME "kol"
 
+#include "weechat-kolmafia.h"
+
 namespace weechat_kolmafia
 {
-  class config
+  class plugin::config
   {
     public:
       config(struct t_weechat_plugin *weechat_plugin);
