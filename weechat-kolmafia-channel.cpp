@@ -10,12 +10,6 @@ namespace weechat_kolmafia
     buffer = weechat_buffer_new(name.c_str(), input_callback, this, nullptr, close_callback, this, nullptr);
     weechat_buffer_set(buffer, "nicklist", "1");
     
-    // TODO: change these colors to be configurable
-    friends = weechat_nicklist_add_group(buffer, nullptr, "1|friends", "blue,0", 1);
-    clannies = weechat_nicklist_add_group(buffer, nullptr, "2|clannies", "green,0", 1);
-    others = weechat_nicklist_add_group(buffer, nullptr, "3|others", "bar_fg,0", 1);
-    away = weechat_nicklist_add_group(buffer, nullptr, "4|away", "11,0", 1);
-
     update_nicklist();
   }
 
@@ -47,11 +41,12 @@ namespace weechat_kolmafia
     std::string res;
     if(plug->submit_message(message, res) == WEECHAT_RC_OK)
     {
+      // TODO: change these colors to be configurable
       weechat_nicklist_remove_all(buffer);
-      weechat_nicklist_add_group(buffer, nullptr, "1|friends", "blue,0", 1);
-      weechat_nicklist_add_group(buffer, nullptr, "2|clannies", "green,0", 1);
-      weechat_nicklist_add_group(buffer, nullptr, "3|others", "bar_fg,0", 1);
-      weechat_nicklist_add_group(buffer, nullptr, "4|away", "11,0", 1);
+      friends = weechat_nicklist_add_group(buffer, nullptr, "1|friends", "blue,0", 0);
+      clannies = weechat_nicklist_add_group(buffer, nullptr, "2|clannies", "green,0", 0);
+      others = weechat_nicklist_add_group(buffer, nullptr, "3|others", "bar_fg,0", 0);
+      away = weechat_nicklist_add_group(buffer, nullptr, "4|away", "11,0", 0);
 
       Json::Value v;
       Json::Reader r;
@@ -100,16 +95,17 @@ namespace weechat_kolmafia
         }
         else if(nextIsName)
         {
-          const char *group_name = "others";
-          if(nextIsFriend) group_name = "friends";
-          if(nextIsAway) group_name = "away";
-          struct t_gui_nick_group *group = weechat_nicklist_search_group(buffer, nullptr, group_name);
+          // TODO: clannies detection
+          struct t_gui_nick_group *group = others;
+          if(nextIsFriend) group = friends;
+          if(nextIsAway) group = away;
           if(group != nullptr)
           {
             auto nick = weechat_nicklist_add_nick(buffer, group, it->text().c_str(), "bar_fg", "", "", 1);
-            if(nick == nullptr) weechat_printf(buffer, "Problem adding nick %s to group %s", it->text().c_str(), group_name);
+            if(nick == nullptr) weechat_printf(buffer, "Problem adding nick %s to group %s", it->text().c_str(), weechat_nicklist_group_get_string(buffer, group, "name"));
+            weechat_nicklist_group_set(buffer, group, "visible", "1");
           }
-          else weechat_printf(buffer, "Something got messed bruh [%s][%s]",group_name,it->text().c_str());
+          else weechat_printf(buffer, "Something got messed bruh [%s][%s]",weechat_nicklist_group_get_string(buffer, group, "name"),it->text().c_str());
 
           nextIsName = nextIsAway = nextIsFriend = false;
         }
