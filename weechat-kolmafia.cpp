@@ -73,7 +73,7 @@ namespace weechat_kolmafia
 
     set_poll_delay(3000);
     poll_cli_hook = weechat_hook_timer(1000, 1, 0, poll_cli_callback, this, nullptr);
-    update_nicklists_hook = weechat_hook_timer(60000, 60, 0, update_nicklists_callback, this, nullptr);
+    update_nicklists_hook = weechat_hook_timer(1000, 1, 0, update_nicklists_callback, this, nullptr);
 
 #define HOOK_COMMAND(CMD, DESC, ARGS, ARGS_DESC, COMPLETION) weechat_hook_command(#CMD, DESC, ARGS, ARGS_DESC, COMPLETION, plugin::CMD##_command_aux, this, nullptr);
   }
@@ -118,7 +118,7 @@ namespace weechat_kolmafia
     (void) data;
     return plug->handle_close_cli(weebuf);
   }
-  
+
   int plugin::poll_callback(const void *ptr, void *data, int remaining_calls)
   {
     plugin *plug = (plugin *) ptr;
@@ -134,7 +134,7 @@ namespace weechat_kolmafia
     (void) remaining_calls;
     return plug->poll_cli_messages();
   }
-  
+
   int plugin::update_nicklists_callback(const void *ptr, void *data, int remaining_calls)
   {
     plugin *plug = (plugin *) ptr;
@@ -553,7 +553,7 @@ namespace weechat_kolmafia
     {
       it->second->update_nicklist();
     }
-    
+
     return WEECHAT_RC_OK;
   }
 

@@ -5,17 +5,17 @@
 namespace weechat_kolmafia
 {
   plugin::channel::channel(plugin *plug, const std::string &name)
-    : weechat_plugin(plug->weechat_plugin), nicklist_last_updated(0), plug(plug)
+    : weechat_plugin(plug->weechat_plugin), nicklist_last_updated(0), plug(plug), name(name)
   {
     buffer = weechat_buffer_new(name.c_str(), input_callback, this, nullptr, close_callback, this, nullptr);
     weechat_buffer_set(buffer, "nicklist", "1");
-    
+
     update_nicklist();
   }
 
   plugin::channel::~channel()
   {
-    
+
   }
 
   int plugin::channel::input_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data)
@@ -36,13 +36,19 @@ namespace weechat_kolmafia
 
   void plugin::channel::update_nicklist()
   {
+    time_t now = time(nullptr);
+    if(now - nicklist_last_updated < 60 || (weechat_buffer_get_integer(buffer, "num_displayed") < 1 && nicklist_last_updated != 0)) // only update if it's been a minute since last update and window is active (or hasn't been updated before
+      return;
+    weechat_printf(plug->dbg, "Updating %s nicklist", name.c_str());
     std::string message("/who ");
     message += weechat_buffer_get_string(buffer, "name");
     std::string res;
     if(plug->submit_message(message, res) == WEECHAT_RC_OK)
     {
-      // TODO: change these colors to be configurable
+      std::map<std::string, Loather> loathersNow;
+
       weechat_nicklist_remove_all(buffer);
+      // TODO: change these colors to be configurable
       friends = weechat_nicklist_add_group(buffer, nullptr, "1|friends", "blue,0", 0);
       clannies = weechat_nicklist_add_group(buffer, nullptr, "2|clannies", "green,0", 0);
       others = weechat_nicklist_add_group(buffer, nullptr, "3|others", "bar_fg,0", 0);
@@ -99,17 +105,53 @@ namespace weechat_kolmafia
           struct t_gui_nick_group *group = others;
           if(nextIsFriend) group = friends;
           if(nextIsAway) group = away;
-          if(group != nullptr)
-          {
-            auto nick = weechat_nicklist_add_nick(buffer, group, it->text().c_str(), "bar_fg", "", "", 1);
-            if(nick == nullptr) weechat_printf(buffer, "Problem adding nick %s to group %s", it->text().c_str(), weechat_nicklist_group_get_string(buffer, group, "name"));
-            weechat_nicklist_group_set(buffer, group, "visible", "1");
-          }
-          else weechat_printf(buffer, "Something got messed bruh [%s][%s]",weechat_nicklist_group_get_string(buffer, group, "name"),it->text().c_str());
 
+          loathersNow.emplace(plug->name_uniquify(it->text()),
+              Loather(it->text(), nextIsFriend, false, nextIsAway));
           nextIsName = nextIsAway = nextIsFriend = false;
+
+          weechat_nicklist_add_nick(buffer, group, it->text().c_str(), nullptr, nullptr, nullptr, 1);
+          weechat_nicklist_group_set(buffer, group, "visible", "1");
         }
       }
+
+      // first, handle all the leavers
+      for(auto it = loathers.begin(); it != loathers.end(); ++it)
+      {
+        if(loathersNow.find(it->first) == loathersNow.end())
+        {
+          auto colorconf = weechat_config_get("weechat.color.chat_prefix_quit");
+          auto color = weechat_config_color(colorconf);
+          const char *colorstr = weechat_color(color);
+          auto prefixconf = weechat_config_get("weechat.look.prefix_quit");
+          const char *prefix = weechat_config_string(prefixconf);
+          const char *reset = weechat_color("resetcolor");
+          const char *playername = it->second.name.c_str();
+          weechat_printf_date_tags(buffer, 0, "kol_leave_message",
+              "%s%s%s\t%s has left %s", colorstr, prefix, reset, playername, name.c_str());
+        }
+      }
+      // now handle joins
+      for(auto it = loathersNow.begin(); it != loathersNow.end(); ++it)
+      {
+        auto old = loathers.find(it->first);
+        if(old == loathers.end())
+        {
+          auto colorconf = weechat_config_get("weechat.color.chat_prefix_join");
+          auto color = weechat_config_color(colorconf);
+          const char *colorstr = weechat_color(color);
+          auto prefixconf = weechat_config_get("weechat.look.prefix_join");
+          const char *prefix = weechat_config_string(prefixconf);
+          const char *reset = weechat_color("resetcolor");
+          const char *playername = it->second.name.c_str();
+          weechat_printf_date_tags(buffer, 0, "kol_join_message",
+              "%s%s%s\t%s has joined %s", colorstr, prefix, reset, playername, name.c_str());
+        }
+        // TODO: detect changing to/from away status
+      }
+
+      loathers = loathersNow;
+      nicklist_last_updated = now;
     }
   }
 
