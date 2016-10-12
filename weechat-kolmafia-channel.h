@@ -50,6 +50,7 @@ namespace weechat_kolmafia
 
       int handle_input(const char *input_data);
       int handle_close();
+      int handle_presence_change(const Loather &loather, bool isJoining);
   };
 }
 

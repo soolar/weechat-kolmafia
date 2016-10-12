@@ -120,15 +120,7 @@ namespace weechat_kolmafia
       {
         if(loathersNow.find(it->first) == loathersNow.end())
         {
-          auto colorconf = weechat_config_get("weechat.color.chat_prefix_quit");
-          auto color = weechat_config_color(colorconf);
-          const char *colorstr = weechat_color(color);
-          auto prefixconf = weechat_config_get("weechat.look.prefix_quit");
-          const char *prefix = weechat_config_string(prefixconf);
-          const char *reset = weechat_color("resetcolor");
-          const char *playername = it->second.name.c_str();
-          weechat_printf_date_tags(buffer, 0, "kol_leave_message",
-              "%s%s%s\t%s has left %s", colorstr, prefix, reset, playername, name.c_str());
+          handle_presence_change(it->second, false);
         }
       }
       // now handle joins
@@ -137,15 +129,7 @@ namespace weechat_kolmafia
         auto old = loathers.find(it->first);
         if(old == loathers.end())
         {
-          auto colorconf = weechat_config_get("weechat.color.chat_prefix_join");
-          auto color = weechat_config_color(colorconf);
-          const char *colorstr = weechat_color(color);
-          auto prefixconf = weechat_config_get("weechat.look.prefix_join");
-          const char *prefix = weechat_config_string(prefixconf);
-          const char *reset = weechat_color("resetcolor");
-          const char *playername = it->second.name.c_str();
-          weechat_printf_date_tags(buffer, 0, "kol_join_message",
-              "%s%s%s\t%s has joined %s", colorstr, prefix, reset, playername, name.c_str());
+          handle_presence_change(it->second, true);
         }
         // TODO: detect changing to/from away status
       }
@@ -191,6 +175,24 @@ namespace weechat_kolmafia
   int plugin::channel::handle_close()
   {
     plug->channels.erase(weechat_buffer_get_string(buffer, "name"));
+    return WEECHAT_RC_OK;
+  }
+
+  int plugin::channel::handle_presence_change(const Loather &loather, bool isJoining)
+  {
+    auto colorconf = weechat_config_get(isJoining ? "weechat.color.chat_prefix_join" :
+                                                    "weechat.color.chat_prefix_quit");
+    auto color = weechat_config_color(colorconf);
+    const char *colorstr = weechat_color(color);
+    auto prefixconf = weechat_config_get(isJoining ? "weechat.look.prefix_join" :
+                                                     "weechat.look.prefix_quit");
+    const char *prefix = weechat_config_string(prefixconf);
+    const char *reset = weechat_color("resetcolor");
+    const char *playername = loather.name.c_str();
+    weechat_printf_date_tags(buffer, 0, isJoining? "kol_join_message" : "kol_leave_message",
+        "%s%s%s\t%s has %s %s", colorstr, prefix, reset, playername, 
+        isJoining ? "joined" : "left", name.c_str());
+
     return WEECHAT_RC_OK;
   }
 } // namespace weechat_kolmafia
