@@ -15,7 +15,7 @@ namespace WeechatKolmafia
 
   Plugin::Channel::~Channel()
   {
-
+    HandleClose();
   }
 
   int Plugin::Channel::InputCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData)
@@ -31,9 +31,8 @@ namespace WeechatKolmafia
     auto chan = (Plugin::Channel *) ptr;
     (void) data;
     (void) weebuf;
-    int code = chan->HandleClose();
     delete chan;
-    return code;
+    return WEECHAT_RC_OK;
   }
 
   void Plugin::Channel::UpdateNicklist()
@@ -176,7 +175,8 @@ namespace WeechatKolmafia
 
   int Plugin::Channel::HandleClose()
   {
-    plug->channels.erase(weechat_buffer_get_string(buffer, "name"));
+    weechat_nicklist_remove_all(buffer);
+    plug->channels.erase(name);
     return WEECHAT_RC_OK;
   }
 
