@@ -65,7 +65,23 @@ namespace WeechatKolmafia
     events = weechat_buffer_new("events", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     cli = weechat_buffer_new("mafia", InputCliCallback, this, nullptr, CloseCliCallback, this, nullptr);
     weechat_buffer_set(dbg, "notify", "0");
-    GetChannel("clan");
+
+    // open buffers for all currently listened channels
+    std::string res;
+    if(SubmitMessage("/l", res) != WEECHAT_RC_ERROR)
+    {
+      Json::Value v;
+      Json::Reader r;
+      r.parse(res, v);
+      std::istringstream ss(HtmlToWeechat(v["output"].asString()));
+      while(std::getline(ss, res))
+      {
+        if(res.size() > 2 && res[0] == ' ' && res[1] == ' ')
+        {
+          GetChannel(res.substr(2));
+        }
+      }
+    }
 
     SetPollDelay(3000);
     pollCliHook = weechat_hook_timer(1000, 1, 0, PollCliCallback, this, nullptr);
