@@ -2,48 +2,50 @@
 #include <htmlcxx/html/ParserDom.h>
 #include <string>
 
-namespace weechat_kolmafia
+namespace WeechatKolmafia
 {
-  plugin::channel::channel(plugin *plug, const std::string &name)
-    : weechat_plugin(plug->weechat_plugin), nicklist_last_updated(0), plug(plug), name(name)
+  Plugin::Channel::Channel(Plugin *plug, const std::string &name)
+    : weechat_plugin(plug->weechat_plugin), name(name), plug(plug), nicklistLastUpdated(0)
   {
-    buffer = weechat_buffer_new(name.c_str(), input_callback, this, nullptr, close_callback, this, nullptr);
+    buffer = weechat_buffer_new(name.c_str(), InputCallback, this, nullptr, CloseCallback, this, nullptr);
     weechat_buffer_set(buffer, "nicklist", "1");
 
-    update_nicklist();
+    UpdateNicklist();
   }
 
-  plugin::channel::~channel()
+  Plugin::Channel::~Channel()
   {
 
   }
 
-  int plugin::channel::input_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data)
+  int Plugin::Channel::InputCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData)
   {
-    auto chan = (plugin::channel *) ptr;
+    auto chan = (Plugin::Channel *) ptr;
     (void) data;
-    return chan->handle_input(input_data);
+    (void) weebuf;
+    return chan->HandleInput(inputData);
   }
 
-  int plugin::channel::close_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf)
+  int Plugin::Channel::CloseCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf)
   {
-    auto chan = (plugin::channel *) ptr;
+    auto chan = (Plugin::Channel *) ptr;
     (void) data;
-    int code = chan->handle_close();
+    (void) weebuf;
+    int code = chan->HandleClose();
     delete chan;
     return code;
   }
 
-  void plugin::channel::update_nicklist()
+  void Plugin::Channel::UpdateNicklist()
   {
     time_t now = time(nullptr);
-    if(now - nicklist_last_updated < 60 || (weechat_buffer_get_integer(buffer, "num_displayed") < 1 && nicklist_last_updated != 0)) // only update if it's been a minute since last update and window is active (or hasn't been updated before
+    if(now - nicklistLastUpdated < 60 || (weechat_buffer_get_integer(buffer, "num_displayed") < 1 && nicklistLastUpdated != 0)) // only update if it's been a minute since last update and window is active (or hasn't been updated before
       return;
     weechat_printf(plug->dbg, "Updating %s nicklist", name.c_str());
     std::string message("/who ");
     message += weechat_buffer_get_string(buffer, "name");
     std::string res;
-    if(plug->submit_message(message, res) == WEECHAT_RC_OK)
+    if(plug->SubmitMessage(message, res) == WEECHAT_RC_OK)
     {
       std::map<std::string, Loather> loathersNow;
 
@@ -106,7 +108,7 @@ namespace weechat_kolmafia
           if(nextIsFriend) group = friends;
           if(nextIsAway) group = away;
 
-          loathersNow.emplace(plug->name_uniquify(it->text()),
+          loathersNow.emplace(plug->NameUniquify(it->text()),
               Loather(it->text(), nextIsFriend, false, nextIsAway));
           nextIsName = nextIsAway = nextIsFriend = false;
 
@@ -120,7 +122,7 @@ namespace weechat_kolmafia
       {
         if(loathersNow.find(it->first) == loathersNow.end())
         {
-          handle_presence_change(it->second, false);
+          HandlePresenceChange(it->second, false);
         }
       }
       // now handle joins
@@ -129,37 +131,37 @@ namespace weechat_kolmafia
         auto old = loathers.find(it->first);
         if(old == loathers.end())
         {
-          handle_presence_change(it->second, true);
+          HandlePresenceChange(it->second, true);
         }
         // TODO: detect changing to/from away status
       }
 
       loathers = loathersNow;
-      nicklist_last_updated = now;
+      nicklistLastUpdated = now;
     }
   }
 
-  void plugin::channel::write_message(time_t when, const std::string &sender, const std::string &message, const std::string &tags)
+  void Plugin::Channel::WriteMessage(time_t when, const std::string &sender, const std::string &message, const std::string &tags)
   {
     weechat_printf_date_tags(buffer, when, tags.c_str(), "%s\t%s", sender.c_str(), message.c_str());
   }
 
-  int plugin::channel::handle_input(const char *input_data)
+  int Plugin::Channel::HandleInput(const char *inputData)
   {
     std::string message("/");
-    if(input_data[0] != ';')
+    if(inputData[0] != ';')
     {
       message += weechat_buffer_get_string(buffer, "name");
       message += " ";
     }
     else
     {
-      input_data += 1;
+      inputData += 1;
     }
-    message += input_data;
+    message += inputData;
 
     std::string res;
-    if(plug->submit_message(message, res) == WEECHAT_RC_ERROR)
+    if(plug->SubmitMessage(message, res) == WEECHAT_RC_ERROR)
       return WEECHAT_RC_ERROR;
 
     //weechat_printf(dbg,"%s",buffer.c_str());
@@ -168,17 +170,17 @@ namespace weechat_kolmafia
     r.parse(res, v);
     std::string output = v["output"].asString();
     if(!output.empty())
-      weechat_printf(buffer, "%s", plug->html_to_weechat(output).c_str());
+      weechat_printf(buffer, "%s", plug->HtmlToWeechat(output).c_str());
     return WEECHAT_RC_OK;
   }
 
-  int plugin::channel::handle_close()
+  int Plugin::Channel::HandleClose()
   {
     plug->channels.erase(weechat_buffer_get_string(buffer, "name"));
     return WEECHAT_RC_OK;
   }
 
-  int plugin::channel::handle_presence_change(const Loather &loather, bool isJoining)
+  int Plugin::Channel::HandlePresenceChange(const Loather &loather, bool isJoining)
   {
     auto colorconf = weechat_config_get(isJoining ? "weechat.color.chat_prefix_join" :
                                                     "weechat.color.chat_prefix_quit");
@@ -195,5 +197,5 @@ namespace weechat_kolmafia
 
     return WEECHAT_RC_OK;
   }
-} // namespace weechat_kolmafia
+} // namespace WeechatKolmafia
 

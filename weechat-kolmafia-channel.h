@@ -3,31 +3,31 @@
 
 #include "weechat-kolmafia.h"
 
-namespace weechat_kolmafia
+namespace WeechatKolmafia
 {
-  class plugin::channel
+  class Plugin::Channel
   {
     public:
-      channel(plugin *plug, const std::string &name);
-      ~channel();
+      Channel(Plugin *plug, const std::string &name);
+      ~Channel();
 
-      static int input_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data);
-      static int close_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
+      static int InputCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData);
+      static int CloseCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
 
-      void update_nicklist();
+      void UpdateNicklist();
 
-      void write_message(time_t when, const std::string &sender, const std::string &message, const std::string &tags);
+      void WriteMessage(time_t when, const std::string &sender, const std::string &message, const std::string &tags);
 
     private:
       struct t_weechat_plugin *weechat_plugin;
       struct t_gui_buffer *buffer;
       const std::string name;
 
-      plugin *plug;
+      Plugin *plug;
 
-      const config *conf;
+      const Config *conf;
 
-      time_t nicklist_last_updated;
+      time_t nicklistLastUpdated;
 
       struct Loather
       {
@@ -48,9 +48,9 @@ namespace weechat_kolmafia
       struct t_gui_nick_group *others;
       struct t_gui_nick_group *away;
 
-      int handle_input(const char *input_data);
-      int handle_close();
-      int handle_presence_change(const Loather &loather, bool isJoining);
+      int HandleInput(const char *inputData);
+      int HandleClose();
+      int HandlePresenceChange(const Loather &loather, bool isJoining);
   };
 }
 

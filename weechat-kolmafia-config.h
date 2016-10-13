@@ -7,13 +7,13 @@
 
 #include "weechat-kolmafia.h"
 
-namespace weechat_kolmafia
+namespace WeechatKolmafia
 {
-  class plugin::config
+  class Plugin::Config
   {
     public:
-      config(struct t_weechat_plugin *weechat_plugin);
-      ~config();
+      Config(struct t_weechat_plugin *weechat_plugin);
+      ~Config();
       int reload();
       int write();
 

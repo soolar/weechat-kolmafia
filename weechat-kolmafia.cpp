@@ -22,9 +22,9 @@ WEECHAT_PLUGIN_LICENSE("GPL3")
 
 namespace
 {
-  weechat_kolmafia::plugin *plugin_singleton = nullptr;
+  WeechatKolmafia::Plugin *PluginSingleton = nullptr;
 
-  int writer(char *data, size_t size, size_t nmemb, std::string *writerData)
+  int Writer(char *data, size_t size, size_t nmemb, std::string *writerData)
   {
     if(writerData == nullptr)
       return 0;
@@ -33,125 +33,118 @@ namespace
 
     return size * nmemb;
   }
-
-  char to_hex(char c)
-  {
-    if(c < 10)
-      return c + '0';
-    return c - 10 + 'A';
-  }
 } // anonymous namespace
 
 int weechat_plugin_init(struct t_weechat_plugin *plugin, int argc, char *argv[])
 {
-  plugin_singleton = new weechat_kolmafia::plugin(plugin);
+  (void) argc;
+  (void) argv;
+  PluginSingleton = new WeechatKolmafia::Plugin(plugin);
   return WEECHAT_RC_OK;
 }
 
 int weechat_plugin_end(struct t_weechat_plugin *plugin)
 {
-  delete plugin_singleton;
+  (void) plugin;
+  delete PluginSingleton;
   return WEECHAT_RC_OK;
 }
 
-namespace weechat_kolmafia
+namespace WeechatKolmafia
 {
   // public
-  plugin::plugin(struct t_weechat_plugin *plug)
-    : weechat_plugin(plug), conf(new plugin::config(plug)), distribution(0.0, 1.0), poll_hook(nullptr), delay(0), be_good(true)
+  Plugin::Plugin(struct t_weechat_plugin *plug)
+    : weechat_plugin(plug), conf(new Plugin::Config(plug)),  pollHook(nullptr),  delay(0), distribution(0.0, 1.0), beGood(true)
   {
-    update_session();
+    UpdateSession();
 
     curl_global_init(CURL_GLOBAL_ALL);
     lastSeen = "0";
 
     dbg = weechat_buffer_new("debug", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     events = weechat_buffer_new("events", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-    cli = weechat_buffer_new("mafia", input_cli_callback, this, nullptr, close_cli_callback, this, nullptr);
+    cli = weechat_buffer_new("mafia", InputCliCallback, this, nullptr, CloseCliCallback, this, nullptr);
     weechat_buffer_set(dbg, "notify", "0");
-    get_channel("clan");
+    GetChannel("clan");
 
-    set_poll_delay(3000);
-    poll_cli_hook = weechat_hook_timer(1000, 1, 0, poll_cli_callback, this, nullptr);
-    update_nicklists_hook = weechat_hook_timer(1000, 1, 0, update_nicklists_callback, this, nullptr);
+    SetPollDelay(3000);
+    pollCliHook = weechat_hook_timer(1000, 1, 0, PollCliCallback, this, nullptr);
+    updateNicklistsHook = weechat_hook_timer(1000, 1, 0, UpdateNicklistsCallback, this, nullptr);
 
-#define HOOK_COMMAND(CMD, DESC, ARGS, ARGS_DESC, COMPLETION) weechat_hook_command(#CMD, DESC, ARGS, ARGS_DESC, COMPLETION, plugin::CMD##_command_aux, this, nullptr);
+#define HOOK_COMMAND(CMD, DESC, ARGS, ARGS_DESC, COMPLETION) weechat_hook_command(#CMD, DESC, ARGS, ARGS_DESC, COMPLETION, Plugin::CMD##_command_aux, this, nullptr);
   }
 
-  plugin::~plugin()
+  Plugin::~Plugin()
   {
-    be_good = false;
+    beGood = false;
 
     delete conf;
 
-    weechat_unhook(poll_hook);
-    weechat_unhook(poll_cli_hook);
-    weechat_unhook(update_nicklists_hook);
+    weechat_unhook(pollHook);
+    weechat_unhook(pollCliHook);
+    weechat_unhook(updateNicklistsHook);
     curl_global_cleanup();
   }
 
   // callbacks
-  int plugin::input_whisper_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data)
+  int Plugin::InputWhisperCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData)
   {
-    plugin *plug = (plugin *) ptr;
+    Plugin *plug = (Plugin *) ptr;
     (void) data;
-    return plug->handle_input_whisper(weebuf, input_data);
+    return plug->HandleInputWhisper(weebuf, inputData);
   }
 
-  int plugin::input_cli_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data)
+  int Plugin::InputCliCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData)
   {
-    plugin *plug = (plugin *) ptr;
+    Plugin *plug = (Plugin *) ptr;
     (void) data;
-    return plug->handle_input_cli(weebuf, input_data);
+    return plug->HandleInputCli(weebuf, inputData);
   }
 
-  int plugin::close_whisper_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf)
+  int Plugin::CloseWhisperCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf)
   {
-    plugin *plug = (plugin *) ptr;
+    Plugin *plug = (Plugin *) ptr;
     (void) data;
-    return plug->handle_close_whisper(weebuf);
+    return plug->HandleCloseWhisper(weebuf);
   }
 
-  int plugin::close_cli_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf)
+  int Plugin::CloseCliCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf)
   {
-    plugin *plug = (plugin *) ptr;
+    Plugin *plug = (Plugin *) ptr;
     (void) data;
-    return plug->handle_close_cli(weebuf);
+    return plug->HandleCloseCli(weebuf);
   }
 
-  int plugin::poll_callback(const void *ptr, void *data, int remaining_calls)
+  int Plugin::PollCallback(const void *ptr, void *data, int remainingCalls)
   {
-    plugin *plug = (plugin *) ptr;
+    Plugin *plug = (Plugin *) ptr;
     (void) data;
-    (void) remaining_calls;
-    return plug->poll_messages();
+    (void) remainingCalls;
+    return plug->PollMessages();
   }
 
-  int plugin::poll_cli_callback(const void *ptr, void *data, int remaining_calls)
+  int Plugin::PollCliCallback(const void *ptr, void *data, int remainingCalls)
   {
-    plugin *plug = (plugin *) ptr;
+    Plugin *plug = (Plugin *) ptr;
     (void) data;
-    (void) remaining_calls;
-    return plug->poll_cli_messages();
+    (void) remainingCalls;
+    return plug->PollCliMessages();
   }
 
-  int plugin::update_nicklists_callback(const void *ptr, void *data, int remaining_calls)
+  int Plugin::UpdateNicklistsCallback(const void *ptr, void *data, int remainingCalls)
   {
-    plugin *plug = (plugin *) ptr;
+    Plugin *plug = (Plugin *) ptr;
     (void) data;
-    (void) remaining_calls;
-    return plug->update_all_nicklists();
+    (void) remainingCalls;
+    return plug->UpdateAllNicklists();
   }
 
   // commands
-#define COMMAND_FUNCTION(CMD) int plugin::CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol) { plugin *plug = (plugin *) ptr; return plug->CMD##_command(weebuf, argc, argv, argv_eol); } int plugin::CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol)
-  COMMAND_FUNCTION(me)
-  {
-    return WEECHAT_RC_OK;
-  }
-
+#define COMMAND_FUNCTION(CMD) int Plugin::CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol) { (void) data; Plugin *plug = (Plugin *) ptr; return plug->CMD##_command(weebuf, argc, argv, argv_eol); } int Plugin::CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol)
+  // TODO: actually add some commands...
+  
   // private
-  int plugin::http_request(const std::string &url, std::string &outbuf)
+  int Plugin::HttpRequest(const std::string &url, std::string &outbuf)
   {
     //weechat_printf(dbg, "GET %s", url.c_str());
     CURL *curl;
@@ -176,7 +169,7 @@ namespace weechat_kolmafia
       weechat_printf(dbg, "Failed to set url [%s]", errorBuffer);
       return WEECHAT_RC_ERROR;
     }
-    res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writer);
+    res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, Writer);
     if(res != CURLE_OK)
     {
       weechat_printf(dbg, "Failed to set writer [%s]", errorBuffer);
@@ -235,7 +228,7 @@ namespace weechat_kolmafia
     return WEECHAT_RC_OK;
   }
 
-  std::string plugin::html_to_weechat(const std::string& html)
+  std::string Plugin::HtmlToWeechat(const std::string& html)
   {
     std::string parsed;
 
@@ -298,16 +291,16 @@ namespace weechat_kolmafia
     return parsed;
   }
 
-  void plugin::handle_message(const Json::Value &msg)
+  void Plugin::HandleMessage(const Json::Value &msg)
   {
     std::string sender = msg["who"]["name"].asString();
     std::string body = msg["msg"].asString();
     time_t when = std::stoul(msg["time"].asString());
     std::string tags("nick_");
-    tags += name_uniquify(sender);
+    tags += NameUniquify(sender);
     std::string type = msg["type"].asString();
 
-    std::string parsed(html_to_weechat(body));
+    std::string parsed(HtmlToWeechat(body));
 
     if(type == "event")
     {
@@ -346,12 +339,12 @@ namespace weechat_kolmafia
           break;
       }
 
-      auto chan = get_channel(channel.c_str());
-      chan->write_message(when, sender, parsed, tags);
+      auto chan = GetChannel(channel.c_str());
+      chan->WriteMessage(when, sender, parsed, tags);
     }
     else if(type == "private")
     {
-      struct t_gui_buffer *buf = get_whisper_buffer(sender.c_str());
+      struct t_gui_buffer *buf = GetWhisperBuffer(sender.c_str());
       weechat_printf_date_tags(buf, when, tags.c_str(), "%s\t%s", sender.c_str(), parsed.c_str());
     }
     else
@@ -360,7 +353,7 @@ namespace weechat_kolmafia
     }
   }
 
-  void plugin::update_session()
+  void Plugin::UpdateSession()
   {
     std::string fileName(weechat_config_string(conf->mafia.location));
     fileName += "/data/weechat.txt";
@@ -391,7 +384,7 @@ namespace weechat_kolmafia
     }
   }
 
-  std::string plugin::url_encode(const std::string &text)
+  std::string Plugin::UrlEncode(const std::string &text)
   {
     static const std::string safe_chars(
         "0123456789-_.!~*'()"
@@ -417,7 +410,7 @@ namespace weechat_kolmafia
     return encoded;
   }
 
-  std::string plugin::name_uniquify(const std::string &name)
+  std::string Plugin::NameUniquify(const std::string &name)
   {
     std::string encoded;
     for(auto it = name.begin(); it != name.end(); ++it)
@@ -429,77 +422,79 @@ namespace weechat_kolmafia
       else
         encoded += *it;
     }
-    name_deuniquifies[encoded] = name;
+    nameDeuniquifies[encoded] = name;
     return encoded;
   }
 
-  std::string plugin::name_deuniquify(const std::string &name)
+  std::string Plugin::NameDeuniquify(const std::string &name)
   {
-    return name_deuniquifies[name];
+    return nameDeuniquifies[name];
   }
 
-  int plugin::submit_message(const std::string &message, std::string &outbuf)
+  int Plugin::SubmitMessage(const std::string &message, std::string &outbuf)
   {
-    update_session();
+    UpdateSession();
 
     std::string url(URL("submitnewchat.php?playerid="));
     url += std::to_string(weechat_config_integer(conf->session.playerid));
     url += "&pwd=";
     url += weechat_config_string(conf->session.hash);
     url += "&graf=";
-    url += url_encode(message);
+    url += UrlEncode(message);
     url += "&j=1";
 
-    if(http_request(url, outbuf) != WEECHAT_RC_OK)
+    if(HttpRequest(url, outbuf) != WEECHAT_RC_OK)
       return WEECHAT_RC_ERROR;
 
     return WEECHAT_RC_OK;
   }
 
-  int plugin::handle_input_whisper(struct t_gui_buffer *weebuf, const char *input_data)
+  int Plugin::HandleInputWhisper(struct t_gui_buffer *weebuf, const char *inputData)
   {
     std::string message("/msg ");
     message += weechat_buffer_get_string(weebuf, "name");
     message += " ";
-    message += input_data;
+    message += inputData;
 
-    weechat_printf(weebuf, "%s\t%s", weechat_config_string(conf->session.playername), input_data);
+    weechat_printf(weebuf, "%s\t%s", weechat_config_string(conf->session.playername), inputData);
 
     std::string buffer;
-    return submit_message(message, buffer);
+    return SubmitMessage(message, buffer);
   }
 
-  int plugin::handle_input_cli(struct t_gui_buffer *weebuf, const char *input_data)
+  int Plugin::HandleInputCli(struct t_gui_buffer *weebuf, const char *inputData)
   {
+    (void) weebuf;
     std::string url(URL("/KoLmafia/submitCommand?cmd="));
-    url += url_encode(input_data);
+    url += UrlEncode(inputData);
     url += "&pwd=";
     url += weechat_config_string(conf->session.hash);
     std::string buffer;
-    return http_request(url, buffer);
+    return HttpRequest(url, buffer);
   }
 
-  int plugin::handle_close_whisper(struct t_gui_buffer *weebuf)
+  int Plugin::HandleCloseWhisper(struct t_gui_buffer *weebuf)
   {
-    whispers.erase(name_uniquify(weechat_buffer_get_string(weebuf, "name")));
+    whispers.erase(NameUniquify(weechat_buffer_get_string(weebuf, "name")));
     return WEECHAT_RC_OK;
   }
 
-  int plugin::handle_close_cli(struct t_gui_buffer *weebuf)
+  int Plugin::HandleCloseCli(struct t_gui_buffer *weebuf)
   {
+    (void) weebuf;
     return WEECHAT_RC_OK;
   }
 
-  int plugin::poll_messages()
+  int Plugin::PollMessages()
   {
-    update_session();
+    UpdateSession();
 
     std::string url(URL("newchatmessages.php?aa="));
     url += std::to_string(distribution(generator));
     url += "&j=1&lasttime=";
     url += lastSeen;
     std::string buffer;
-    if(http_request(url, buffer) != WEECHAT_RC_OK)
+    if(HttpRequest(url, buffer) != WEECHAT_RC_OK)
       return WEECHAT_RC_ERROR;
 
     //weechat_printf(dbg, "%s", buffer.c_str());
@@ -509,25 +504,25 @@ namespace weechat_kolmafia
     Json::Value msgs = v["msgs"];
 
     lastSeen = v["last"].asString();
-    set_poll_delay(v["delay"].asInt64());
+    SetPollDelay(v["delay"].asInt64());
 
     for(Json::ArrayIndex i = 0; i < msgs.size(); ++i)
     {
-      handle_message(msgs[i]);
+      HandleMessage(msgs[i]);
     }
 
     return WEECHAT_RC_OK;
   }
 
-  int plugin::poll_cli_messages()
+  int Plugin::PollCliMessages()
   {
-    update_session();
+    UpdateSession();
 
     std::string url(URL("KoLmafia/messageUpdate?pwd="));
     url += weechat_config_string(conf->session.hash);
 
     std::string res;
-    if(http_request(url, res) == WEECHAT_RC_ERROR)
+    if(HttpRequest(url, res) == WEECHAT_RC_ERROR)
       return WEECHAT_RC_ERROR;
     if(!res.empty() && res != " ")
     {
@@ -539,7 +534,7 @@ namespace weechat_kolmafia
           return WEECHAT_RC_OK;
       }
 
-      std::string parsed(html_to_weechat(res));
+      std::string parsed(HtmlToWeechat(res));
       weechat_printf(dbg, "%s", res.c_str());
       weechat_printf(cli, "%s", parsed.c_str());
     }
@@ -547,49 +542,49 @@ namespace weechat_kolmafia
     return WEECHAT_RC_OK;
   }
 
-  int plugin::update_all_nicklists()
+  int Plugin::UpdateAllNicklists()
   {
     for(auto it = channels.begin(); it != channels.end(); ++it)
     {
-      it->second->update_nicklist();
+      it->second->UpdateNicklist();
     }
 
     return WEECHAT_RC_OK;
   }
 
-  int plugin::set_poll_delay(long newdelay)
+  int Plugin::SetPollDelay(long newDelay)
   {
-    if(delay == newdelay)
+    if(delay == newDelay)
       return WEECHAT_RC_OK;
 
-    if(poll_hook != nullptr)
-      weechat_unhook(poll_hook);
+    if(pollHook != nullptr)
+      weechat_unhook(pollHook);
 
-    delay = newdelay;
-    poll_hook = weechat_hook_timer(newdelay, 1, 0, poll_callback, this, nullptr);
+    delay = newDelay;
+    pollHook = weechat_hook_timer(newDelay, 1, 0, PollCallback, this, nullptr);
 
     return WEECHAT_RC_OK;
   }
 
-  plugin::channel *plugin::get_channel(const std::string &name)
+  Plugin::Channel *Plugin::GetChannel(const std::string &name)
   {
     auto it = channels.find(name);
     if(it == channels.end())
     {
-      auto p = channels.insert(std::make_pair(name, new channel(this, name)));
+      auto p = channels.insert(std::make_pair(name, new Channel(this, name)));
       return p.first->second;
     }
     return it->second;
   }
 
-  struct t_gui_buffer *plugin::get_whisper_buffer(const std::string &name)
+  struct t_gui_buffer *Plugin::GetWhisperBuffer(const std::string &name)
   {
-    std::string encoded = name_uniquify(name);
+    std::string encoded = NameUniquify(name);
     struct t_gui_buffer *buf = weechat_buffer_search("kol", encoded.c_str());
     if(buf == nullptr)
-      buf = weechat_buffer_new(encoded.c_str(), input_whisper_callback, this, nullptr, close_whisper_callback, this, nullptr);
+      buf = weechat_buffer_new(encoded.c_str(), InputWhisperCallback, this, nullptr, CloseWhisperCallback, this, nullptr);
     whispers[name] = buf;
     return buf;
   }
-} // namespace weechat_kolmafia
+} // namespace WeechatKolmafia
 

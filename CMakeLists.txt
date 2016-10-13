@@ -5,7 +5,7 @@ project(weechat-kolmafia)
 set(weechat-kolmafia_VERSION_MAJOR 0)
 set(weechat-kolmafia_VERSION_MINOR 1)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wl,--no-undefined")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g -Wall -Wextra -Wl,--no-undefined -Werror")
 
 #include_directories("/usr/include/jsoncpp")
 

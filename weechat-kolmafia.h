@@ -12,72 +12,72 @@ extern "C"
   extern int weechat_plugin_end(struct t_weechat_plugin *plugin);
 }
 
-namespace weechat_kolmafia
+namespace WeechatKolmafia
 {
-  class plugin
+  class Plugin
   {
     public:
-      plugin(struct t_weechat_plugin *plug);
-      ~plugin();
+      Plugin(struct t_weechat_plugin *plug);
+      ~Plugin();
 
       // callbacks
-      static int input_whisper_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data);
-      static int input_cli_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *input_data);
-      static int close_whisper_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
-      static int close_cli_callback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
-      static int poll_callback(const void *ptr, void *data, int remaining_calls);
-      static int poll_cli_callback(const void *ptr, void *data, int remaining_calls);
-      static int update_nicklists_callback(const void *ptr, void *data, int remaining_calls);
+      static int InputWhisperCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData);
+      static int InputCliCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData);
+      static int CloseWhisperCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
+      static int CloseCliCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
+      static int PollCallback(const void *ptr, void *data, int remainingCalls);
+      static int PollCliCallback(const void *ptr, void *data, int remainingCalls);
+      static int UpdateNicklistsCallback(const void *ptr, void *data, int remainingCalls);
 
       // commands
 #define COMMAND_DECLARATION(CMD) static int CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol); int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
-      COMMAND_DECLARATION(me)
+      //COMMAND_DECLARATION(me)
 
     private:
-      class channel;
-      class config;
+      class Channel;
+      class Config;
 
       struct t_weechat_plugin *weechat_plugin;
       std::string lastSeen;
       struct t_gui_buffer *dbg;
       struct t_gui_buffer *events;
       struct t_gui_buffer *cli;
-      config *conf;
-      std::map<std::string, std::string> name_deuniquifies;
-      std::map<std::string, channel*> channels;
+      Config *conf;
+      std::map<std::string, std::string> nameDeuniquifies;
+      std::map<std::string, Channel*> channels;
       std::map<std::string, struct t_gui_buffer *> whispers;
 
-      int http_request(const std::string &url, std::string &outbuf);
-      void handle_message(const Json::Value &msg);
+      int HttpRequest(const std::string &url, std::string &outbuf);
+      void HandleMessage(const Json::Value &msg);
 
-      void update_session();
+      void UpdateSession();
 
-      std::string url_encode(const std::string &text);
-      std::string name_uniquify(const std::string &name);
-      std::string name_deuniquify(const std::string &name);
-      std::string html_to_weechat(const std::string &html);
-      int submit_message(const std::string &message, std::string &outbuf);
-      int handle_input_whisper(struct t_gui_buffer *weebuf, const char *input_data);
-      int handle_input_cli(struct t_gui_buffer *weebuf, const char *input_data);
-      int handle_close_whisper(struct t_gui_buffer *weebuf);
-      int handle_close_cli(struct t_gui_buffer *weebuf);
-      int poll_messages();
-      int poll_cli_messages();
+      std::string UrlEncode(const std::string &text);
+      std::string NameUniquify(const std::string &name);
+      std::string NameDeuniquify(const std::string &name);
+      std::string HtmlToWeechat(const std::string &html);
+      int SubmitMessage(const std::string &message, std::string &outbuf);
+      int HandleInputWhisper(struct t_gui_buffer *weebuf, const char *input_data);
+      int HandleInputCli(struct t_gui_buffer *weebuf, const char *input_data);
+      int HandleCloseWhisper(struct t_gui_buffer *weebuf);
+      int HandleCloseCli(struct t_gui_buffer *weebuf);
+      int PollMessages();
+      int PollCliMessages();
 
-      int set_poll_delay(long newdelay);
+      int SetPollDelay(long newDelay);
 
-      int update_all_nicklists();
-      channel *get_channel(const std::string &channel);
-      struct t_gui_buffer *get_whisper_buffer(const std::string &name);
-      struct t_hook *poll_hook;
-      struct t_hook *poll_cli_hook;
-      struct t_hook *update_nicklists_hook;
+      int UpdateAllNicklists();
+      Channel *GetChannel(const std::string &channel);
+      struct t_gui_buffer *GetWhisperBuffer(const std::string &name);
+      struct t_hook *pollHook;
+      struct t_hook *pollCliHook;
+      struct t_hook *updateNicklistsHook;
       long delay;
 
       std::default_random_engine generator;
       std::uniform_real_distribution<double> distribution;
 
-      bool be_good; // safety flag, set to false in the destructor, NEVER TOUCH OTHERWISE
+      bool beGood; // safety flag, set to false in the destructor, NEVER TOUCH OTHERWISE
     };
 }
 

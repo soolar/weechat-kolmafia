@@ -6,9 +6,9 @@
 //#define KOLMAFIA_LOCATION_DEFAULT "~/.kolmafia"
 #define KOLMAFIA_LOCATION_DEFAULT "/mnt/BIGNSLOW/common/Games/kolmafia"
 
-namespace weechat_kolmafia
+namespace WeechatKolmafia
 {
-  plugin::config::config(struct t_weechat_plugin *plug)
+  Plugin::Config::Config(struct t_weechat_plugin *plug)
     : weechat_plugin(plug)
   {
     file = weechat_config_new(KOL_CONFIG_NAME, nullptr, nullptr, nullptr);
@@ -98,16 +98,16 @@ namespace weechat_kolmafia
   }
 
   // TODO: These functions should probably do something...
-  plugin::config::~config()
+  Plugin::Config::~Config()
   {
   }
 
-  int plugin::config::reload()
+  int Plugin::Config::reload()
   {
     return 1;
   }
 
-  int plugin::config::write()
+  int Plugin::Config::write()
   {
     return 1;
   }
