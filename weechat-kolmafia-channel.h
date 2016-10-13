@@ -8,7 +8,7 @@ namespace WeechatKolmafia
   class Plugin::Channel
   {
     public:
-      Channel(Plugin *plug, const std::string &name);
+      Channel(const std::string &name);
       ~Channel();
 
       static int InputCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData);
@@ -19,13 +19,8 @@ namespace WeechatKolmafia
       void WriteMessage(time_t when, const std::string &sender, const std::string &message, const std::string &tags);
 
     private:
-      struct t_weechat_plugin *weechat_plugin;
       struct t_gui_buffer *buffer;
       const std::string name;
-
-      Plugin *plug;
-
-      const Config *conf;
 
       time_t nicklistLastUpdated;
 

@@ -8,8 +8,7 @@
 
 namespace WeechatKolmafia
 {
-  Plugin::Config::Config(struct t_weechat_plugin *plug)
-    : weechat_plugin(plug)
+  Plugin::Config::Config()
   {
     file = weechat_config_new(KOL_CONFIG_NAME, nullptr, nullptr, nullptr);
     if(!file)

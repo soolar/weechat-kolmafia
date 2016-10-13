@@ -6,6 +6,11 @@
 #include <random>
 #include <map>
 
+namespace WeechatKolmafia { class Plugin; }
+
+extern WeechatKolmafia::Plugin *PluginSingleton;
+extern struct t_weechat_plugin *weechat_plugin;
+
 extern "C"
 {
   extern int weechat_plugin_init(struct t_weechat_plugin *plugin, int argc, char *argv[]);
@@ -17,7 +22,7 @@ namespace WeechatKolmafia
   class Plugin
   {
     public:
-      Plugin(struct t_weechat_plugin *plug);
+      Plugin();
       ~Plugin();
 
       // callbacks
@@ -35,9 +40,8 @@ namespace WeechatKolmafia
 
     private:
       class Channel;
-      class Config;
+      struct Config;
 
-      struct t_weechat_plugin *weechat_plugin;
       std::string lastSeen;
       struct t_gui_buffer *dbg;
       struct t_gui_buffer *events;

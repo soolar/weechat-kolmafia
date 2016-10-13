@@ -20,10 +20,11 @@ WEECHAT_PLUGIN_LICENSE("GPL3")
 
 #define URL(PAGE) "http://127.0.0.1:60080/" PAGE
 
+struct t_weechat_plugin *weechat_plugin = nullptr;
+WeechatKolmafia::Plugin *PluginSingleton = nullptr;
+
 namespace
 {
-  WeechatKolmafia::Plugin *PluginSingleton = nullptr;
-
   int Writer(char *data, size_t size, size_t nmemb, std::string *writerData)
   {
     if(writerData == nullptr)
@@ -39,7 +40,8 @@ int weechat_plugin_init(struct t_weechat_plugin *plugin, int argc, char *argv[])
 {
   (void) argc;
   (void) argv;
-  PluginSingleton = new WeechatKolmafia::Plugin(plugin);
+  weechat_plugin = plugin;
+  PluginSingleton = new WeechatKolmafia::Plugin();
   return WEECHAT_RC_OK;
 }
 
@@ -53,8 +55,8 @@ int weechat_plugin_end(struct t_weechat_plugin *plugin)
 namespace WeechatKolmafia
 {
   // public
-  Plugin::Plugin(struct t_weechat_plugin *plug)
-    : weechat_plugin(plug), conf(new Plugin::Config(plug)),  pollHook(nullptr),  delay(0), distribution(0.0, 1.0), beGood(true)
+  Plugin::Plugin()
+    : conf(new Plugin::Config()),  pollHook(nullptr),  delay(0), distribution(0.0, 1.0), beGood(true)
   {
     UpdateSession();
 

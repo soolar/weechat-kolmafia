@@ -9,10 +9,10 @@
 
 namespace WeechatKolmafia
 {
-  class Plugin::Config
+  struct Plugin::Config
   {
     public:
-      Config(struct t_weechat_plugin *weechat_plugin);
+      Config();
       ~Config();
       int reload();
       int write();
@@ -43,9 +43,6 @@ namespace WeechatKolmafia
         struct t_config_option *cli_message_blacklist;
         struct t_config_option *hide_join_part;
       } look;
-
-    private:
-      struct t_weechat_plugin *weechat_plugin;
   };
 }
 

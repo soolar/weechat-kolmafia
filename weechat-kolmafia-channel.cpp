@@ -5,8 +5,8 @@
 
 namespace WeechatKolmafia
 {
-  Plugin::Channel::Channel(Plugin *plug, const std::string &name)
-    : weechat_plugin(plug->weechat_plugin), name(name), plug(plug), conf(plug->conf), nicklistLastUpdated(0)
+  Plugin::Channel::Channel(const std::string &name)
+    : name(name), nicklistLastUpdated(0)
   {
     buffer = weechat_buffer_new(name.c_str(), InputCallback, this, nullptr, CloseCallback, this, nullptr);
     weechat_buffer_set(buffer, "nicklist", "1");
@@ -41,11 +41,11 @@ namespace WeechatKolmafia
     time_t now = time(nullptr);
     if(now - nicklistLastUpdated < 60 || (weechat_buffer_get_integer(buffer, "num_displayed") < 1 && nicklistLastUpdated != 0)) // only update if it's been a minute since last update and window is active (or hasn't been updated before
       return;
-    weechat_printf(plug->dbg, "Updating %s nicklist", name.c_str());
+    weechat_printf(PluginSingleton->dbg, "Updating %s nicklist", name.c_str());
     std::string message("/who ");
     message += weechat_buffer_get_string(buffer, "name");
     std::string res;
-    if(plug->SubmitMessage(message, res) == WEECHAT_RC_OK)
+    if(PluginSingleton->SubmitMessage(message, res) == WEECHAT_RC_OK)
     {
       std::map<std::string, Loather> loathersNow;
 
@@ -108,7 +108,7 @@ namespace WeechatKolmafia
           if(nextIsFriend) group = friends;
           if(nextIsAway) group = away;
 
-          loathersNow.emplace(plug->NameUniquify(it->text()),
+          loathersNow.emplace(PluginSingleton->NameUniquify(it->text()),
               Loather(it->text(), nextIsFriend, false, nextIsAway));
           nextIsName = nextIsAway = nextIsFriend = false;
 
@@ -161,7 +161,7 @@ namespace WeechatKolmafia
     message += inputData;
 
     std::string res;
-    if(plug->SubmitMessage(message, res) == WEECHAT_RC_ERROR)
+    if(PluginSingleton->SubmitMessage(message, res) == WEECHAT_RC_ERROR)
       return WEECHAT_RC_ERROR;
 
     //weechat_printf(dbg,"%s",buffer.c_str());
@@ -170,19 +170,20 @@ namespace WeechatKolmafia
     r.parse(res, v);
     std::string output = v["output"].asString();
     if(!output.empty())
-      weechat_printf(buffer, "%s", plug->HtmlToWeechat(output).c_str());
+      weechat_printf(buffer, "%s", PluginSingleton->HtmlToWeechat(output).c_str());
     return WEECHAT_RC_OK;
   }
 
   int Plugin::Channel::HandleClose()
   {
     weechat_nicklist_remove_all(buffer);
-    plug->channels.erase(name);
+    PluginSingleton->channels.erase(name);
     return WEECHAT_RC_OK;
   }
 
   int Plugin::Channel::HandlePresenceChange(const Loather &loather, bool isJoining)
   {
+    auto conf = PluginSingleton->conf;
     std::string blacklist(weechat_config_string(conf->look.hide_join_part));
     if(blacklist.find(loather.name) != std::string::npos)
       return WEECHAT_RC_OK;
