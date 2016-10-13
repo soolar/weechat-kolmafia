@@ -526,7 +526,7 @@ namespace WeechatKolmafia
       return WEECHAT_RC_ERROR;
     if(!res.empty() && res != " ")
     {
-      std::istringstream ss(weechat_config_string(conf->cli.message_blacklist));
+      std::istringstream ss(weechat_config_string(conf->look.cli_message_blacklist));
       std::string blacklisted;
       while(std::getline(ss, blacklisted, '~'))
       {

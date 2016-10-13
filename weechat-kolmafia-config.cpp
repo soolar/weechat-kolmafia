@@ -75,25 +75,31 @@ namespace WeechatKolmafia
         nullptr, 0, INT_MAX, "0", nullptr, 0,
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 
-    // cli
-    cli.section = weechat_config_new_section(file, "cli",
+    // look
+    look.section = weechat_config_new_section(file, "look",
         0, 0,
         nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr,
         nullptr, nullptr, nullptr);
-    if(!cli.section)
+    if(!look.section)
     {
       weechat_config_free(file);
       exit(1);
     }
 
-    cli.message_blacklist = weechat_config_new_option(
-        file, cli.section,
-        "message_blacklist", "string",
+    look.cli_message_blacklist = weechat_config_new_option(
+        file, look.section,
+        "cli_message_blacklist", "string",
         N_("~ delimited list of phrases which will make a message not show up in the cli"),
         nullptr, 0, 0, "<br><b>Players in channel", nullptr, 0,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+    look.hide_join_part = weechat_config_new_option(
+        file, look.section,
+        "hide_join_part", "string",
+        N_(", delimited list of names to now show join/part messages for"),
+        nullptr, 0, 0, "RedditBot,RedditRankBot", nullptr, 0,
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
   }
 

@@ -1,11 +1,12 @@
 #include "weechat-kolmafia-channel.h"
+#include "weechat-kolmafia-config.h"
 #include <htmlcxx/html/ParserDom.h>
 #include <string>
 
 namespace WeechatKolmafia
 {
   Plugin::Channel::Channel(Plugin *plug, const std::string &name)
-    : weechat_plugin(plug->weechat_plugin), name(name), plug(plug), nicklistLastUpdated(0)
+    : weechat_plugin(plug->weechat_plugin), name(name), plug(plug), conf(plug->conf), nicklistLastUpdated(0)
   {
     buffer = weechat_buffer_new(name.c_str(), InputCallback, this, nullptr, CloseCallback, this, nullptr);
     weechat_buffer_set(buffer, "nicklist", "1");
@@ -182,6 +183,10 @@ namespace WeechatKolmafia
 
   int Plugin::Channel::HandlePresenceChange(const Loather &loather, bool isJoining)
   {
+    std::string blacklist(weechat_config_string(conf->look.hide_join_part));
+    if(blacklist.find(loather.name) != std::string::npos)
+      return WEECHAT_RC_OK;
+
     auto colorconf = weechat_config_get(isJoining ? "weechat.color.chat_prefix_join" :
                                                     "weechat.color.chat_prefix_quit");
     auto color = weechat_config_color(colorconf);
