@@ -11,7 +11,6 @@
 #include <htmlcxx/html/ParserDom.h>
 #include <htmlcxx/html/utils.h>
 #include <sstream>
-#include <cstdio>
 
 WEECHAT_PLUGIN_NAME("kol")
 WEECHAT_PLUGIN_AUTHOR("soolar")
@@ -389,23 +388,19 @@ namespace WeechatKolmafia
 
   void Plugin::PrintHtml(struct t_gui_buffer *buffer, const std::string &html)
   {
-    // ffs I can not work out a way to do this through piping, so I guess I'll just make an actual
-    // file ugh :|
-    std::string filename("~/Sandbox/temp/");
-    filename += std::to_string(distribution(generator));
-    filename += ".TEMP";
-    std::ofstream tempfile(filename);
-    weechat_printf(dbg, "temp file %s", filename.c_str());
-    tempfile << html;
-    tempfile.close();
     std::string command("/exec -sh -buffer kol.");
     command += weechat_buffer_get_string(buffer, "name");
-    command += " -l -nosw -noln -color weechat -norc -timeout 30 elinks ";
-    command += filename;
-    command += " -dump -dump-color-mode 3 -eval 'set document.dump.numbering =0' "
-      "-eval 'set document.dump.references = 0'";
+    command += " -l -nosw -noln -color weechat -norc -timeout 30 ~/Sandbox/weechat-kolmafia/parse-html.sh \"";
+    for(auto it = html.begin(); it != html.end(); ++it)
+    {
+      if(*it == '"')
+        command += '\\';
+      command += *it;
+      if(*it == '!')
+        command += ' ';
+    }
+    command += '"';
     weechat_command(buffer, command.c_str());
-    std::remove(filename.c_str());
   }
 
   void Plugin::UpdateSession()
