@@ -159,19 +159,6 @@ namespace WeechatKolmafia
     return plug->UpdateAllNicklists();
   }
 
-  int Plugin::PrintHtmlCallback(const void *ptr, void *data, const char *command, int returnCode, const char *out, const char *err)
-  {
-    struct t_gui_buffer *buffer = (struct t_gui_buffer *) ptr;
-    (void) data;
-    if(returnCode > 0)
-    {
-      weechat_printf(PluginSingleton->dbg, "Error in command [%s]: %s", command, err);
-      return WEECHAT_RC_ERROR;
-    }
-    weechat_printf(buffer, "%s", out);
-    return WEECHAT_RC_OK;
-  }
-
   // commands
 #define COMMAND_FUNCTION(CMD) int Plugin::CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol) { (void) data; Plugin *plug = (Plugin *) ptr; return plug->CMD##_command(weebuf, argc, argv, argv_eol); } int Plugin::CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol)
   // TODO: actually add some commands...
@@ -395,7 +382,9 @@ namespace WeechatKolmafia
     {
       if(*it == '"')
         command += '\\';
-      command += *it;
+      if(*it != '\n')
+        command += *it;
+      else command += ' ';
       if(*it == '!')
         command += ' ';
     }
