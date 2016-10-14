@@ -11,6 +11,7 @@
 #include <htmlcxx/html/ParserDom.h>
 #include <htmlcxx/html/utils.h>
 #include <sstream>
+#include <cstdio>
 
 WEECHAT_PLUGIN_NAME("kol")
 WEECHAT_PLUGIN_AUTHOR("soolar")
@@ -155,6 +156,19 @@ namespace WeechatKolmafia
     (void) data;
     (void) remainingCalls;
     return plug->UpdateAllNicklists();
+  }
+
+  int Plugin::PrintHtmlCallback(const void *ptr, void *data, const char *command, int returnCode, const char *out, const char *err)
+  {
+    struct t_gui_buffer *buffer = (struct t_gui_buffer *) ptr;
+    (void) data;
+    if(returnCode > 0)
+    {
+      weechat_printf(PluginSingleton->dbg, "Error in command [%s]: %s", command, err);
+      return WEECHAT_RC_ERROR;
+    }
+    weechat_printf(buffer, "%s", out);
+    return WEECHAT_RC_OK;
   }
 
   // commands
@@ -371,6 +385,27 @@ namespace WeechatKolmafia
     }
   }
 
+  void Plugin::PrintHtml(struct t_gui_buffer *buffer, const std::string &html)
+  {
+    // ffs I can not work out a way to do this through piping, so I guess I'll just make an actual
+    // file ugh :|
+    std::string filename("~/Sandbox/temp/");
+    filename += std::to_string(distribution(generator));
+    filename += ".TEMP";
+    std::ofstream tempfile(filename);
+    weechat_printf(dbg, "temp file %s", filename.c_str());
+    tempfile << html;
+    tempfile.close();
+    std::string command("/exec -sh -buffer kol.");
+    command += weechat_buffer_get_string(buffer, "name");
+    command += " -l -nosw -noln -color weechat -norc -timeout 30 elinks ";
+    command += filename;
+    command += " -dump -dump-color-mode 3 -eval 'set document.dump.numbering =0' "
+      "-eval 'set document.dump.references = 0'";
+    weechat_command(buffer, command.c_str());
+    std::remove(filename.c_str());
+  }
+
   void Plugin::UpdateSession()
   {
     std::string fileName(weechat_config_string(conf->mafia.location));
@@ -552,9 +587,8 @@ namespace WeechatKolmafia
           return WEECHAT_RC_OK;
       }
 
-      std::string parsed(HtmlToWeechat(res));
       weechat_printf(dbg, "%s", res.c_str());
-      weechat_printf(cli, "%s", parsed.c_str());
+      PrintHtml(cli, res);
     }
 
     return WEECHAT_RC_OK;

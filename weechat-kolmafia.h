@@ -33,6 +33,7 @@ namespace WeechatKolmafia
       static int PollCallback(const void *ptr, void *data, int remainingCalls);
       static int PollCliCallback(const void *ptr, void *data, int remainingCalls);
       static int UpdateNicklistsCallback(const void *ptr, void *data, int remainingCalls);
+      static int PrintHtmlCallback(const void *ptr, void *data, const char *command, int returnCode, const char *out, const char *err);
 
       // commands
 #define COMMAND_DECLARATION(CMD) static int CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol); int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
@@ -53,6 +54,7 @@ namespace WeechatKolmafia
 
       int HttpRequest(const std::string &url, std::string &outbuf);
       void HandleMessage(const Json::Value &msg);
+      void PrintHtml(struct t_gui_buffer *buffer, const std::string &html); // TODO: Allow sending of tags/time
 
       void UpdateSession();
 
