@@ -59,6 +59,8 @@ namespace WeechatKolmafia
   Plugin::Plugin()
     : conf(new Plugin::Config()),  pollHook(nullptr),  delay(0), distribution(0.0, 1.0), beGood(true)
   {
+    PluginSingleton = this;
+
     UpdateSession();
 
     curl_global_init(CURL_GLOBAL_ALL);
@@ -623,7 +625,7 @@ namespace WeechatKolmafia
     auto it = channels.find(name);
     if(it == channels.end())
     {
-      auto p = channels.insert(std::make_pair(name, new Channel(this, name)));
+      auto p = channels.insert(std::make_pair(name, new Channel(name)));
       return p.first->second;
     }
     return it->second;
