@@ -98,11 +98,12 @@ namespace WeechatKolmafia
   {
     beGood = false;
 
-    delete conf;
-
     weechat_unhook(pollHook);
     weechat_unhook(pollCliHook);
     weechat_unhook(updateNicklistsHook);
+
+    delete conf;
+
     curl_global_cleanup();
   }
 

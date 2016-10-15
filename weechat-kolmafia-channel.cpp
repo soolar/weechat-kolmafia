@@ -32,6 +32,16 @@ namespace WeechatKolmafia
     auto chan = (Plugin::Channel *) ptr;
     (void) data;
     (void) weebuf;
+    if(PluginSingleton->beGood)
+    {
+      auto it = PluginSingleton->channels.find(chan->name);
+      if(it == PluginSingleton->channels.end())
+      {
+        weechat_printf(PluginSingleton->dbg, "Something went wrong closing buffer %s", chan->name.c_str());
+        return WEECHAT_RC_ERROR;
+      }
+      PluginSingleton->channels.erase(it);
+    }
     delete chan;
     return WEECHAT_RC_OK;
   }
@@ -176,8 +186,8 @@ namespace WeechatKolmafia
 
   int Plugin::Channel::HandleClose()
   {
-    weechat_nicklist_remove_all(buffer);
-    PluginSingleton->channels.erase(name);
+    // TODO: Unlisten the channel?
+    
     return WEECHAT_RC_OK;
   }
 
