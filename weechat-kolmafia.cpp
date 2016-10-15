@@ -314,21 +314,20 @@ namespace WeechatKolmafia
   void Plugin::HandleMessage(const Json::Value &msg)
   {
     std::string sender = msg["who"]["name"].asString();
+    sender += '\t';
     std::string body = msg["msg"].asString();
     time_t when = std::stoul(msg["time"].asString());
     std::string tags("nick_");
     tags += NameUniquify(sender);
     std::string type = msg["type"].asString();
 
-    std::string parsed(HtmlToWeechat(body));
-
     if(type == "event")
     {
-      weechat_printf_date_tags(events, when, "kol_event", "\t%s", parsed.c_str());
+      PrintHtml(events, body, when, "kol_event", "\t");
     }
     else if(type == "system")
     {
-      weechat_printf_date_tags(events, when, "kol_system", "\t%s%s", "System Message: ", parsed.c_str());
+      PrintHtml(events, body, when, "kol_system", "\tSystem Message: ");
     }
     else if(type == "public")
     {
@@ -343,6 +342,7 @@ namespace WeechatKolmafia
           sender = weechat_color(weechat_config_string(weechat_config_get("weechat.color.chat_prefix_action")));
           sender += weechat_config_string(weechat_config_get("weechat.look.prefix_action"));
           sender += weechat_color("resetcolor");
+          sender += '\t';
           break;
         case 2: // system message
           // public system messages are no longer used, or so I have been told
@@ -360,12 +360,12 @@ namespace WeechatKolmafia
       }
 
       auto chan = GetChannel(channel.c_str());
-      chan->WriteMessage(when, sender, parsed, tags);
+      chan->WriteMessage(when, sender, body, tags);
     }
     else if(type == "private")
     {
       struct t_gui_buffer *buf = GetWhisperBuffer(sender.c_str());
-      weechat_printf_date_tags(buf, when, tags.c_str(), "%s\t%s", sender.c_str(), parsed.c_str());
+      PrintHtml(buf, body, when, tags.c_str(), sender.c_str());
     }
     else
     {
@@ -373,11 +373,36 @@ namespace WeechatKolmafia
     }
   }
 
-  void Plugin::PrintHtml(struct t_gui_buffer *buffer, const std::string &html)
+  void Plugin::PrintHtml(struct t_gui_buffer *buffer, const std::string &html, time_t when /*= 0*/,
+      const char *tags /*= nullptr*/, const char *prefix /*= nullptr*/)
   {
-    std::string command("/exec -sh -buffer kol.");
+    std::string command("/exec -sh -nosw -noln -color weechat -norc -pipe \"/print -buffer kol.");
     command += weechat_buffer_get_string(buffer, "name");
-    command += " -l -nosw -noln -color weechat -norc -timeout 30 ~/Sandbox/weechat-kolmafia/parse-html.sh \"";
+    if(when != 0)
+    {
+      command += " -date ";
+      command += std::to_string(when);
+    }
+    if(tags != nullptr)
+    {
+      command += " -tags ";
+      command += tags;
+    }
+    if(prefix != nullptr)
+    {
+      command += ' ';
+      const char * looper = prefix;
+      while(*looper)
+      {
+        if(*looper == '\t')
+          command += "\\t";
+        else
+          command += *looper;
+        ++looper;
+      }
+      command += "$line";
+    }
+    command += "\" -timeout 30 ~/Sandbox/weechat-kolmafia/parse-html.sh \"";
     for(auto it = html.begin(); it != html.end(); ++it)
     {
       if(*it == '"')
@@ -389,6 +414,7 @@ namespace WeechatKolmafia
         command += ' ';
     }
     command += '"';
+    weechat_printf(dbg, "\t%s", command.c_str());
     weechat_command(buffer, command.c_str());
   }
 
@@ -573,7 +599,6 @@ namespace WeechatKolmafia
           return WEECHAT_RC_OK;
       }
 
-      weechat_printf(dbg, "%s", res.c_str());
       PrintHtml(cli, res);
     }
 
