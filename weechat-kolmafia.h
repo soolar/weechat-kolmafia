@@ -72,6 +72,7 @@ namespace WeechatKolmafia
       int HandleInputCli(struct t_gui_buffer *weebuf, const char *input_data);
       int HandleCloseWhisper(struct t_gui_buffer *weebuf);
       int HandleCloseCli(struct t_gui_buffer *weebuf);
+      void HandleMafiaEscape(const std::string &key, const std::string &value);
       int PollMessages();
 
       int SetPollDelay(long newDelay);

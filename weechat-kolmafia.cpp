@@ -1,10 +1,7 @@
 #include "weechat-kolmafia.h"
 #include "weechat-kolmafia-config.h"
 #include "weechat-kolmafia-channel.h"
-#include <iostream>
-#include <fstream>
 #include <string>
-#include <sys/stat.h>
 #include <time.h>
 #include <curl/curl.h>
 #include "json/json.h"
@@ -60,8 +57,6 @@ namespace WeechatKolmafia
   {
     PluginSingleton = this;
 
-    UpdateSession();
-
     curl_global_init(CURL_GLOBAL_ALL);
     lastSeen = "0";
 
@@ -70,22 +65,8 @@ namespace WeechatKolmafia
     cli = weechat_buffer_new("mafia", InputCliCallback, this, nullptr, CloseCliCallback, this, nullptr);
     weechat_buffer_set(dbg, "notify", "0");
 
-    // open buffers for all currently listened channels
-    std::string res;
-    if(SubmitMessage("/l", res) != WEECHAT_RC_ERROR)
-    {
-      Json::Value v;
-      Json::Reader r;
-      r.parse(res, v);
-      std::istringstream ss(HtmlToWeechat(v["output"].asString()));
-      while(std::getline(ss, res))
-      {
-        if(res.size() > 2 && res[0] == ' ' && res[1] == ' ')
-        {
-          GetChannel(res.substr(2));
-        }
-      }
-    }
+    UpdateSession();
+    weechat_command(dbg, "/exec -in kolmafia ashq print(\"@WEECHAT@SESSINIT=true\");");
 
     SetPollDelay(3000);
     updateNicklistsHook = weechat_hook_timer(1000, 1, 0, UpdateNicklistsCallback, this, nullptr);
@@ -176,7 +157,13 @@ namespace WeechatKolmafia
       return WEECHAT_RC_ERROR;
 
     std::string text(argv_eol[1]);
-    if(!text.empty() && text != " ")
+
+    if(text.length() > 1 && text[0] == '>')
+      text = text.substr(1);
+    if(text.length() > 1 && text[0] == ' ')
+      text = text.substr(1);
+
+    if(!text.empty())
     {
       std::istringstream ss(weechat_config_string(conf->look.cli_message_blacklist));
       std::string blacklisted;
@@ -186,12 +173,28 @@ namespace WeechatKolmafia
           return WEECHAT_RC_OK;
       }
 
+      static const std::string escapeSequence("@WEECHAT@");
+      if(text.length() > escapeSequence.length() &&
+          text.substr(0, escapeSequence.length()) == escapeSequence)
+      {
+        std::string message(text.substr(escapeSequence.length()));
+        weechat_printf(dbg, "Escape code received from mafia [%s]", message.c_str());
+        size_t split = message.find_first_of('=');
+        if(split != std::string::npos && split > 0)
+        {
+          std::string key = message.substr(0, split);
+          std::string value = message.substr(split + 1);
+          HandleMafiaEscape(key, value);
+        }
+        return WEECHAT_RC_OK;
+      }
+
       PrintHtml(cli, text);
     }
 
     return WEECHAT_RC_OK;
   }
-  
+
   // private
   int Plugin::HttpRequest(const std::string &url, std::string &outbuf)
   {
@@ -449,33 +452,8 @@ namespace WeechatKolmafia
 
   void Plugin::UpdateSession()
   {
-    std::string fileName(weechat_config_string(conf->mafia.location));
-    fileName += "/data/weechat.txt";
-    struct stat t_stat;
-    stat(fileName.c_str(), &t_stat);
-    time_t editted = t_stat.st_ctime;
-    time_t known = weechat_config_integer(conf->session.lastloaded);
-
-    if(known < editted)
-    {
-      // session data is outdated, time to update
-      //weechat_printf(dbg, "Current session data from %d, actual session data from %d, reloading session.", known, editted);
-      std::filebuf fb;
-      if(fb.open(fileName, std::ios::in))
-      {
-        std::istream is(&fb);
-        std::string line;
-        std::getline(is, line);
-        weechat_config_option_set(conf->session.hash, line.c_str() + 2, 0);
-        std::getline(is, line);
-        weechat_config_option_set(conf->session.playerid, line.c_str() + 2, 0);
-        std::getline(is, line);
-        weechat_config_option_set(conf->session.playername, line.c_str() + 2, 0);
-        char timestamp[1024]; // a 64 bit integer can be 19 digits at most, so 1024 should definitely be enough room
-        sprintf(timestamp, "%ld", editted);
-        weechat_config_option_set(conf->session.lastloaded, timestamp, 0);
-      }
-    }
+    weechat_command(dbg, "/exec -in kolmafia ashq print(\"@WEECHAT@HASH=\" + my_hash()); "
+        "print(\"@WEECHAT@ID=\" + my_id()); print(\"@WEECHAT@NAME=\" + my_name());");
   }
 
   std::string Plugin::UrlEncode(const std::string &text)
@@ -576,10 +554,39 @@ namespace WeechatKolmafia
     return WEECHAT_RC_OK;
   }
 
+  void Plugin::HandleMafiaEscape(const std::string &key, const std::string &value)
+  {
+    if(key == "HASH")
+      weechat_config_option_set(conf->session.hash, value.c_str(), 0);
+    else if(key == "ID")
+      weechat_config_option_set(conf->session.playerid, value.c_str(), 0);
+    else if(key == "NAME")
+      weechat_config_option_set(conf->session.playername, value.c_str(), 0);
+    else if(key == "SESSINIT")
+    {
+      // open buffers for all currently listened channels
+      std::string res;
+      if(SubmitMessage("/l", res) != WEECHAT_RC_ERROR)
+      {
+        Json::Value v;
+        Json::Reader r;
+        r.parse(res, v);
+        std::istringstream ss(HtmlToWeechat(v["output"].asString()));
+        while(std::getline(ss, res))
+        {
+          if(res.size() > 2 && res[0] == ' ' && res[1] == ' ')
+          {
+            GetChannel(res.substr(2));
+          }
+        }
+      }
+    }
+    else
+      weechat_printf(dbg, "Unknown mafia escape [%s=%s]", key.c_str(), value.c_str());
+  }
+
   int Plugin::PollMessages()
   {
-    UpdateSession();
-
     std::string url(URL("newchatmessages.php?aa="));
     url += std::to_string(distribution(generator));
     url += "&j=1&lasttime=";

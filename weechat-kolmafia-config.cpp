@@ -67,12 +67,6 @@ namespace WeechatKolmafia
         N_("your player name, can be automatically detected via the accompanying ash script"),
         nullptr, 0, 0, "UNSET", nullptr, 0,
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-    session.lastloaded = weechat_config_new_option(
-        file, session.section,
-        "lastloaded", "integer",
-        N_("the last time that the other session data was loaded, for use with the accompanying ash script"),
-        nullptr, 0, INT_MAX, "0", nullptr, 0,
-        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 
     // look
     look.section = weechat_config_new_section(file, "look",

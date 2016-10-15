@@ -33,7 +33,6 @@ namespace WeechatKolmafia
         struct t_config_option *hash;
         struct t_config_option *playerid;
         struct t_config_option *playername;
-        struct t_config_option *lastloaded;
       } session;
 
       struct // look section
