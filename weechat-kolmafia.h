@@ -33,13 +33,14 @@ namespace WeechatKolmafia
       static int CloseWhisperCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
       static int CloseCliCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
       static int PollCallback(const void *ptr, void *data, int remainingCalls);
-      static int PollCliCallback(const void *ptr, void *data, int remainingCalls);
       static int UpdateNicklistsCallback(const void *ptr, void *data, int remainingCalls);
 
       // commands
 #define COMMAND_DECLARATION(CMD) static int CMD##_command_aux(const void *ptr, void *data, \
     struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol); \
     int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
+      COMMAND_DECLARATION(StartMafia)
+      COMMAND_DECLARATION(ReceiveMafia)
       //COMMAND_DECLARATION(me)
 
     private:
@@ -72,7 +73,6 @@ namespace WeechatKolmafia
       int HandleCloseWhisper(struct t_gui_buffer *weebuf);
       int HandleCloseCli(struct t_gui_buffer *weebuf);
       int PollMessages();
-      int PollCliMessages();
 
       int SetPollDelay(long newDelay);
 
@@ -80,7 +80,6 @@ namespace WeechatKolmafia
       Channel *GetChannel(const std::string &channel);
       struct t_gui_buffer *GetWhisperBuffer(const std::string &name);
       struct t_hook *pollHook;
-      struct t_hook *pollCliHook;
       struct t_hook *updateNicklistsHook;
       long delay;
 

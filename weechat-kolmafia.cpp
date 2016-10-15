@@ -88,10 +88,13 @@ namespace WeechatKolmafia
     }
 
     SetPollDelay(3000);
-    pollCliHook = weechat_hook_timer(1000, 1, 0, PollCliCallback, this, nullptr);
     updateNicklistsHook = weechat_hook_timer(1000, 1, 0, UpdateNicklistsCallback, this, nullptr);
 
 #define HOOK_COMMAND(CMD, DESC, ARGS, ARGS_DESC, COMPLETION) weechat_hook_command(#CMD, DESC, ARGS, ARGS_DESC, COMPLETION, Plugin::CMD##_command_aux, this, nullptr);
+    HOOK_COMMAND(StartMafia, "Launch kolmafia set up to feed output to and "
+        "receive input from the mafia buffer", nullptr, nullptr, nullptr)
+    HOOK_COMMAND(ReceiveMafia, "Receive input from kolmafia and print it to the mafia buffer. "
+        "For internal use. Don't touch.", nullptr, nullptr, nullptr)
   }
 
   Plugin::~Plugin()
@@ -99,7 +102,6 @@ namespace WeechatKolmafia
     beGood = false;
 
     weechat_unhook(pollHook);
-    weechat_unhook(pollCliHook);
     weechat_unhook(updateNicklistsHook);
 
     delete conf;
@@ -144,14 +146,6 @@ namespace WeechatKolmafia
     return plug->PollMessages();
   }
 
-  int Plugin::PollCliCallback(const void *ptr, void *data, int remainingCalls)
-  {
-    Plugin *plug = (Plugin *) ptr;
-    (void) data;
-    (void) remainingCalls;
-    return plug->PollCliMessages();
-  }
-
   int Plugin::UpdateNicklistsCallback(const void *ptr, void *data, int remainingCalls)
   {
     Plugin *plug = (Plugin *) ptr;
@@ -162,7 +156,41 @@ namespace WeechatKolmafia
 
   // commands
 #define COMMAND_FUNCTION(CMD) int Plugin::CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol) { (void) data; Plugin *plug = (Plugin *) ptr; return plug->CMD##_command(weebuf, argc, argv, argv_eol); } int Plugin::CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol)
-  // TODO: actually add some commands...
+  COMMAND_FUNCTION(StartMafia)
+  {
+    (void) weebuf;
+    (void) argc;
+    (void) argv;
+    (void) argv_eol;
+
+    // TODO: Make sure mafia isn't already running
+    weechat_command(dbg, "/exec -sh -stdin -pipe /receivemafia -noln -norc -name kolmafia mafia");
+    return WEECHAT_RC_OK;
+  }
+
+  COMMAND_FUNCTION(ReceiveMafia)
+  {
+    (void) weebuf;
+    (void) argv;
+    if(argc < 2)
+      return WEECHAT_RC_ERROR;
+
+    std::string text(argv_eol[1]);
+    if(!text.empty() && text != " ")
+    {
+      std::istringstream ss(weechat_config_string(conf->look.cli_message_blacklist));
+      std::string blacklisted;
+      while(std::getline(ss, blacklisted, '~'))
+      {
+        if(text.find(blacklisted) != std::string::npos)
+          return WEECHAT_RC_OK;
+      }
+
+      PrintHtml(cli, text);
+    }
+
+    return WEECHAT_RC_OK;
+  }
   
   // private
   int Plugin::HttpRequest(const std::string &url, std::string &outbuf)
@@ -530,13 +558,10 @@ namespace WeechatKolmafia
 
   int Plugin::HandleInputCli(struct t_gui_buffer *weebuf, const char *inputData)
   {
-    (void) weebuf;
-    std::string url(URL("/KoLmafia/submitCommand?cmd="));
-    url += UrlEncode(inputData);
-    url += "&pwd=";
-    url += weechat_config_string(conf->session.hash);
-    std::string buffer;
-    return HttpRequest(url, buffer);
+    std::string command("/exec -in kolmafia ");
+    command += inputData;
+    weechat_printf(weebuf, "\t%s> %s", weechat_color("green"), inputData);
+    return weechat_command(weebuf, command.c_str());
   }
 
   int Plugin::HandleCloseWhisper(struct t_gui_buffer *weebuf)
@@ -575,32 +600,6 @@ namespace WeechatKolmafia
     for(Json::ArrayIndex i = 0; i < msgs.size(); ++i)
     {
       HandleMessage(msgs[i]);
-    }
-
-    return WEECHAT_RC_OK;
-  }
-
-  int Plugin::PollCliMessages()
-  {
-    UpdateSession();
-
-    std::string url(URL("KoLmafia/messageUpdate?pwd="));
-    url += weechat_config_string(conf->session.hash);
-
-    std::string res;
-    if(HttpRequest(url, res) == WEECHAT_RC_ERROR)
-      return WEECHAT_RC_ERROR;
-    if(!res.empty() && res != " ")
-    {
-      std::istringstream ss(weechat_config_string(conf->look.cli_message_blacklist));
-      std::string blacklisted;
-      while(std::getline(ss, blacklisted, '~'))
-      {
-        if(res.find(blacklisted) != std::string::npos)
-          return WEECHAT_RC_OK;
-      }
-
-      PrintHtml(cli, res);
     }
 
     return WEECHAT_RC_OK;
