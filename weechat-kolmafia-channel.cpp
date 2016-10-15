@@ -143,7 +143,7 @@ namespace WeechatKolmafia
 
   void Plugin::Channel::WriteMessage(time_t when, const std::string &sender, const std::string &message, const std::string &tags)
   {
-    weechat_printf_date_tags(buffer, when, tags.c_str(), "%s\t%s", sender.c_str(), message.c_str());
+    PluginSingleton->PrintHtml(buffer, message, when, tags.c_str(), sender.c_str());
   }
 
   int Plugin::Channel::HandleInput(const char *inputData)
@@ -170,7 +170,7 @@ namespace WeechatKolmafia
     r.parse(res, v);
     std::string output = v["output"].asString();
     if(!output.empty())
-      weechat_printf(buffer, "%s", PluginSingleton->HtmlToWeechat(output).c_str());
+      PluginSingleton->PrintHtml(buffer, output);
     return WEECHAT_RC_OK;
   }
 

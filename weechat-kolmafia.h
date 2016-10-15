@@ -26,8 +26,10 @@ namespace WeechatKolmafia
       ~Plugin();
 
       // callbacks
-      static int InputWhisperCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData);
-      static int InputCliCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData);
+      static int InputWhisperCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf,
+          const char *inputData);
+      static int InputCliCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf,
+          const char *inputData);
       static int CloseWhisperCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
       static int CloseCliCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
       static int PollCallback(const void *ptr, void *data, int remainingCalls);
@@ -35,7 +37,9 @@ namespace WeechatKolmafia
       static int UpdateNicklistsCallback(const void *ptr, void *data, int remainingCalls);
 
       // commands
-#define COMMAND_DECLARATION(CMD) static int CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol); int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
+#define COMMAND_DECLARATION(CMD) static int CMD##_command_aux(const void *ptr, void *data, \
+    struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol); \
+    int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
       //COMMAND_DECLARATION(me)
 
     private:
@@ -53,6 +57,8 @@ namespace WeechatKolmafia
 
       int HttpRequest(const std::string &url, std::string &outbuf);
       void HandleMessage(const Json::Value &msg);
+      void PrintHtml(struct t_gui_buffer *buffer, const std::string &html, time_t when = 0,
+          const char *tags = nullptr, const char *prefix = nullptr);
 
       void UpdateSession();
 
