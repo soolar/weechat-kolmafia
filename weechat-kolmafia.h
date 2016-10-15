@@ -41,6 +41,7 @@ namespace WeechatKolmafia
     int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
       COMMAND_DECLARATION(StartMafia)
       COMMAND_DECLARATION(ReceiveMafia)
+      COMMAND_DECLARATION(KoLPrintInternal)
       //COMMAND_DECLARATION(me)
 
     private:

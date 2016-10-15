@@ -76,6 +76,7 @@ namespace WeechatKolmafia
         "receive input from the mafia buffer", nullptr, nullptr, nullptr)
     HOOK_COMMAND(ReceiveMafia, "Receive input from kolmafia and print it to the mafia buffer. "
         "For internal use. Don't touch.", nullptr, nullptr, nullptr)
+    HOOK_COMMAND(KoLPrintInternal, "No. Internal use only >:(", nullptr, nullptr, nullptr)
   }
 
   Plugin::~Plugin()
@@ -192,6 +193,42 @@ namespace WeechatKolmafia
       PrintHtml(cli, text);
     }
 
+    return WEECHAT_RC_OK;
+  }
+
+  static void StringRep(std::string &str, const std::string &toRep, const std::string &repWith)
+  {
+    if(repWith.find(toRep) != std::string::npos)
+      return; // infinite loops are back mkay
+    size_t pos = str.find(toRep);
+    while(pos != std::string::npos)
+    {
+      str.erase(pos, toRep.length());
+      str.insert(pos, repWith);
+      pos = str.find(toRep);
+    }
+  }
+
+  COMMAND_FUNCTION(KoLPrintInternal)
+  {
+    (void) weebuf;
+    // arguments
+    // 1: bufferName
+    // 2: time
+    // 3: tags
+    // 4-: message
+    if(argc < 5)
+      return WEECHAT_RC_ERROR;
+
+    struct t_gui_buffer *buffer = weechat_buffer_search("kol", argv[1]);
+    std::string message(argv_eol[4]);
+    StringRep(message, "\\i", weechat_color("italic"));
+    StringRep(message, "\\I", weechat_color("-italic"));
+    weechat_printf_date_tags(buffer, std::stoul(argv[2]), argv[3], "%s", message.c_str());
+    std::string dbgcommand("/exec -sh -bg echo ");
+    dbgcommand += message;
+    dbgcommand += " >> ~/weeplugindebug.log";
+    weechat_command(buffer, dbgcommand.c_str());
     return WEECHAT_RC_OK;
   }
 
@@ -408,21 +445,22 @@ namespace WeechatKolmafia
   void Plugin::PrintHtml(struct t_gui_buffer *buffer, const std::string &html, time_t when /*= 0*/,
       const char *tags /*= nullptr*/, const char *prefix /*= nullptr*/)
   {
-    std::string command("/exec -sh -nosw -noln -color weechat -norc -pipe \"/print -buffer kol.");
+    std::string command("/exec -sh -nosw -noln -color weechat -norc -pipe \"/KoLPrintInternal ");
     command += weechat_buffer_get_string(buffer, "name");
+    command += ' ';
     if(when != 0)
-    {
-      command += " -date ";
       command += std::to_string(when);
-    }
+    else
+      command += std::to_string(time(nullptr));
+    command += " kol_mafia_print_internal,";
     if(tags != nullptr)
-    {
-      command += " -tags ";
       command += tags;
-    }
     if(prefix != nullptr)
     {
       command += ' ';
+      command += prefix;
+      command += "$line";
+      /*
       const char * looper = prefix;
       while(*looper)
       {
@@ -432,7 +470,7 @@ namespace WeechatKolmafia
           command += *looper;
         ++looper;
       }
-      command += "$line";
+      */
     }
     command += "\" -timeout 30 ~/Sandbox/weechat-kolmafia/parse-html.sh \"";
     for(auto it = html.begin(); it != html.end(); ++it)
