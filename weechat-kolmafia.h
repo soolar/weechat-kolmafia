@@ -71,6 +71,7 @@ namespace WeechatKolmafia
       std::string NameDeuniquify(const std::string &name);
       std::string HtmlToWeechat(const std::string &html);
       int SubmitMessage(const std::string &message, std::string &outbuf);
+      int SubmitMessage(const std::string &message, struct t_gui_buffer *buffer);
       int HandleInputWhisper(struct t_gui_buffer *weebuf, const char *input_data);
       int HandleInputCli(struct t_gui_buffer *weebuf, const char *input_data);
       int HandleCloseWhisper(struct t_gui_buffer *weebuf);

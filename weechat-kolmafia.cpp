@@ -590,6 +590,22 @@ namespace WeechatKolmafia
     return WEECHAT_RC_OK;
   }
 
+  int Plugin::SubmitMessage(const std::string &message, struct t_gui_buffer *buffer)
+  {
+    std::string res;
+    if(SubmitMessage(message, res) == WEECHAT_RC_ERROR)
+      return WEECHAT_RC_ERROR;
+
+    //weechat_printf(dbg,"%s",buffer.c_str());
+    Json::Value v;
+    Json::Reader r;
+    r.parse(res, v);
+    std::string output = v["output"].asString();
+    if(!output.empty())
+      PrintHtml(buffer, output);
+    return WEECHAT_RC_OK;
+  }
+
   int Plugin::HandleInputWhisper(struct t_gui_buffer *weebuf, const char *inputData)
   {
     std::string message("/msg ");
