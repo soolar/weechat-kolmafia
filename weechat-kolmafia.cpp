@@ -20,6 +20,9 @@ WEECHAT_PLUGIN_LICENSE("GPL3")
 struct t_weechat_plugin *weechat_plugin = nullptr;
 WeechatKolmafia::Plugin *PluginSingleton = nullptr;
 
+#define MAX_PREFIX_LENGTH 4096
+#define MAX_TAGS_LENGTH 4096
+
 namespace
 {
   int Writer(char *data, size_t size, size_t nmemb, std::string *writerData)
@@ -31,6 +34,14 @@ namespace
 
     return size * nmemb;
   }
+
+  struct PrintHtmlCallbackData
+  {
+    struct t_gui_buffer *buffer;
+    time_t when;
+    char tags[MAX_TAGS_LENGTH];
+    char prefix[MAX_PREFIX_LENGTH];
+  };
 } // anonymous namespace
 
 int weechat_plugin_init(struct t_weechat_plugin *plugin, int argc, char *argv[])
@@ -76,7 +87,6 @@ namespace WeechatKolmafia
         "receive input from the mafia buffer", nullptr, nullptr, nullptr)
     HOOK_COMMAND(ReceiveMafia, "Receive input from kolmafia and print it to the mafia buffer. "
         "For internal use. Don't touch.", nullptr, nullptr, nullptr)
-    HOOK_COMMAND(KoLPrintInternal, "No. Internal use only >:(", nullptr, nullptr, nullptr)
   }
 
   Plugin::~Plugin()
@@ -136,6 +146,67 @@ namespace WeechatKolmafia
     return plug->UpdateAllNicklists();
   }
 
+  int Plugin::PrintHtmlCallback(const void *ptr, void *dataptr, const char *command, int returnCode,
+      const char *out, const char *err)
+  {
+    (void) ptr;
+    if(returnCode > 0 || returnCode == WEECHAT_HOOK_PROCESS_ERROR || out == nullptr)
+    {
+      weechat_printf(PluginSingleton->dbg, "Error code %d running [%s]: %s",
+          returnCode, command, err);
+      return WEECHAT_RC_ERROR;
+    }
+
+    PrintHtmlCallbackData *data = (PrintHtmlCallbackData *) dataptr;
+    std::string parsed;
+    const char *it = out;
+    while(*it != '\0')
+    {
+      if(*it == '\e')
+      {
+        // escape code go
+        ++it;
+        if(*it != '\0' && *it == '[')
+        {
+          ++it;
+          std::string currcode;
+          // ok it's definitely the right kind
+          while(*it != '\0' && *it != 'm')
+          {
+            currcode += *it;
+            ++it;
+          }
+          if(currcode == "3")
+            parsed += weechat_color("italic");
+          else if(currcode == "23")
+            parsed += weechat_color("-italic");
+          else if(currcode.size() == 2 && currcode[0] == '3')
+          {
+            std::string colorstr("|");
+            colorstr += currcode[1];
+            parsed += weechat_color(colorstr.c_str());
+          }
+          else
+            weechat_printf(PluginSingleton->dbg, "Unhandled ansi escape [%s]", currcode.c_str());
+        }
+        else
+        {
+          weechat_printf(PluginSingleton->dbg, "Malformed ansi escape sequence somewhere in {%s}", out);
+          return WEECHAT_RC_ERROR;
+        }
+      }
+      else
+        parsed += *it;
+      ++it;
+    }
+
+    //weechat_printf(PluginSingleton->dbg, "Here's the situation:\n%s%s", out, parsed.c_str());
+    weechat_printf_date_tags(data->buffer, data->when, data->tags,
+        "%s%s", data->prefix, parsed.c_str());
+
+    return WEECHAT_RC_OK;
+  }
+
   // commands
 #define COMMAND_FUNCTION(CMD) int Plugin::CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol) { (void) data; Plugin *plug = (Plugin *) ptr; return plug->CMD##_command(weebuf, argc, argv, argv_eol); } int Plugin::CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol)
   COMMAND_FUNCTION(StartMafia)
@@ -146,7 +217,9 @@ namespace WeechatKolmafia
     (void) argv_eol;
 
     // TODO: Make sure mafia isn't already running
-    weechat_command(dbg, "/exec -sh -stdin -pipe /receivemafia -noln -norc -name kolmafia mafia");
+    weechat_command(dbg, "/exec -sh -stdin -pipe /ReceiveMafia -noln -norc -name kolmafia mafia");
+    UpdateSession();
+    weechat_command(dbg, "/exec -in kolmafia ashq print(\"@WEECHAT@SESSINIT=true\");");
     return WEECHAT_RC_OK;
   }
 
@@ -159,13 +232,22 @@ namespace WeechatKolmafia
 
     std::string text(argv_eol[1]);
 
-    if(text.length() > 1 && text[0] == '>')
-      text = text.substr(1);
-    if(text.length() > 1 && text[0] == ' ')
-      text = text.substr(1);
-
     if(!text.empty())
     {
+      // strip out ANSI codes
+      size_t pos = text.find("\e[");
+      while(pos != std::string::npos)
+      {
+        size_t endpos = text.find('m', pos);
+        text.erase(pos, endpos - pos + 1);
+        pos = text.find("\e[");
+      }
+
+      if(text.length() > 1 && text[0] == '>')
+        text = text.substr(1);
+      if(text.length() > 1 && text[0] == ' ')
+        text = text.substr(1);
+
       std::istringstream ss(weechat_config_string(conf->look.cli_message_blacklist));
       std::string blacklisted;
       while(std::getline(ss, blacklisted, '~'))
@@ -175,11 +257,11 @@ namespace WeechatKolmafia
       }
 
       static const std::string escapeSequence("@WEECHAT@");
-      if(text.length() > escapeSequence.length() &&
-          text.substr(0, escapeSequence.length()) == escapeSequence)
+      pos = text.find(escapeSequence);
+      if(pos != std::string::npos)
       {
-        std::string message(text.substr(escapeSequence.length()));
-        weechat_printf(dbg, "Escape code received from mafia [%s]", message.c_str());
+        std::string message(text.substr(pos + escapeSequence.length()));
+        //weechat_printf(dbg, "Escape code received from mafia [%s]", message.c_str());
         size_t split = message.find_first_of('=');
         if(split != std::string::npos && split > 0)
         {
@@ -193,42 +275,6 @@ namespace WeechatKolmafia
       PrintHtml(cli, text);
     }
 
-    return WEECHAT_RC_OK;
-  }
-
-  static void StringRep(std::string &str, const std::string &toRep, const std::string &repWith)
-  {
-    if(repWith.find(toRep) != std::string::npos)
-      return; // infinite loops are back mkay
-    size_t pos = str.find(toRep);
-    while(pos != std::string::npos)
-    {
-      str.erase(pos, toRep.length());
-      str.insert(pos, repWith);
-      pos = str.find(toRep);
-    }
-  }
-
-  COMMAND_FUNCTION(KoLPrintInternal)
-  {
-    (void) weebuf;
-    // arguments
-    // 1: bufferName
-    // 2: time
-    // 3: tags
-    // 4-: message
-    if(argc < 5)
-      return WEECHAT_RC_ERROR;
-
-    struct t_gui_buffer *buffer = weechat_buffer_search("kol", argv[1]);
-    std::string message(argv_eol[4]);
-    StringRep(message, "\\i", weechat_color("italic"));
-    StringRep(message, "\\I", weechat_color("-italic"));
-    weechat_printf_date_tags(buffer, std::stoul(argv[2]), argv[3], "%s", message.c_str());
-    std::string dbgcommand("/exec -sh -bg echo ");
-    dbgcommand += message;
-    dbgcommand += " >> ~/weeplugindebug.log";
-    weechat_command(buffer, dbgcommand.c_str());
     return WEECHAT_RC_OK;
   }
 
@@ -445,34 +491,7 @@ namespace WeechatKolmafia
   void Plugin::PrintHtml(struct t_gui_buffer *buffer, const std::string &html, time_t when /*= 0*/,
       const char *tags /*= nullptr*/, const char *prefix /*= nullptr*/)
   {
-    std::string command("/exec -sh -nosw -noln -color weechat -norc -pipe \"/KoLPrintInternal ");
-    command += weechat_buffer_get_string(buffer, "name");
-    command += ' ';
-    if(when != 0)
-      command += std::to_string(when);
-    else
-      command += std::to_string(time(nullptr));
-    command += " kol_mafia_print_internal,";
-    if(tags != nullptr)
-      command += tags;
-    if(prefix != nullptr)
-    {
-      command += ' ';
-      command += prefix;
-      command += "$line";
-      /*
-      const char * looper = prefix;
-      while(*looper)
-      {
-        if(*looper == '\t')
-          command += "\\t";
-        else
-          command += *looper;
-        ++looper;
-      }
-      */
-    }
-    command += "\" -timeout 30 ~/Sandbox/weechat-kolmafia/parse-html.sh \"";
+    std::string command("~/Sandbox/weechat-kolmafia/parse-html.sh \"");
     for(auto it = html.begin(); it != html.end(); ++it)
     {
       if(*it == '"')
@@ -484,8 +503,20 @@ namespace WeechatKolmafia
         command += ' ';
     }
     command += '"';
+    PrintHtmlCallbackData *data = (PrintHtmlCallbackData *) malloc(sizeof(PrintHtmlCallbackData));
+    data->buffer = buffer;
+    data->when = when;
+    // TODO: length checking for safety's sake
+    if(tags != nullptr)
+      std::strcpy(data->tags, tags);
+    else
+      data->tags[0] = '\0';
+    if(prefix != nullptr)
+      std::strcpy(data->prefix, prefix);
+    else
+      data->prefix[0] = '\0';
     weechat_printf(dbg, "\t%s", command.c_str());
-    weechat_command(buffer, command.c_str());
+    weechat_hook_process(command.c_str(), 30000, PrintHtmlCallback, nullptr, data);
   }
 
   void Plugin::UpdateSession()
