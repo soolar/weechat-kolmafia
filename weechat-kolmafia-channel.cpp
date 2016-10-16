@@ -147,8 +147,8 @@ namespace WeechatKolmafia
       }
 
       loathers = loathersNow;
-      nicklistLastUpdated = now;
     }
+    nicklistLastUpdated = now;
   }
 
   void Plugin::Channel::WriteMessage(time_t when, const std::string &sender, const std::string &message, const std::string &tags)
