@@ -82,11 +82,8 @@ namespace WeechatKolmafia
     SetPollDelay(3000);
     updateNicklistsHook = weechat_hook_timer(1000, 1, 0, UpdateNicklistsCallback, this, nullptr);
 
-#define HOOK_COMMAND(CMD, DESC, ARGS, ARGS_DESC, COMPLETION) weechat_hook_command(#CMD, DESC, ARGS, ARGS_DESC, COMPLETION, Plugin::CMD##_command_aux, this, nullptr);
-    HOOK_COMMAND(StartMafia, "Launch kolmafia set up to feed output to and "
-        "receive input from the mafia buffer", nullptr, nullptr, nullptr)
-    HOOK_COMMAND(ReceiveMafia, "Receive input from kolmafia and print it to the mafia buffer. "
-        "For internal use. Don't touch.", nullptr, nullptr, nullptr)
+#define SLASH_COMMAND(CMD, DESC, ARGS, ARGS_DESC, COMPLETION) weechat_hook_command(#CMD, DESC, ARGS, ARGS_DESC, COMPLETION, Plugin::CMD##_command_aux, this, nullptr);
+#include "weechat-kolmafia-commands.h"
   }
 
   Plugin::~Plugin()
@@ -276,6 +273,41 @@ namespace WeechatKolmafia
     }
 
     return WEECHAT_RC_OK;
+  }
+
+  COMMAND_FUNCTION(me)
+  {
+    if(argc < 2)
+      return WEECHAT_RC_ERROR;
+    (void) argv;
+
+    std::string message("/");
+    message += weechat_buffer_get_string(weebuf, "name");
+    message += ' ';
+    message += argv_eol[0];
+    return PluginSingleton->SubmitMessage(message, weebuf);
+  }
+
+  COMMAND_FUNCTION(who)
+  {
+    (void) argv_eol;
+
+    std::string command("/who ");
+    if(argc > 1)
+      command += argv[1];
+    else
+      command += weechat_buffer_get_string(weebuf, "name");
+    return PluginSingleton->SubmitMessage(command, weebuf);
+  }
+
+  COMMAND_FUNCTION(whois)
+  {
+    (void) argv_eol;
+    if(argc < 2)
+      return WEECHAT_RC_ERROR;
+    std::string command("/whois ");
+    command += argv[1];
+    return PluginSingleton->SubmitMessage(command, weebuf);
   }
 
   // private

@@ -38,13 +38,11 @@ namespace WeechatKolmafia
           const char *out, const char *err);
 
       // commands
-#define COMMAND_DECLARATION(CMD) static int CMD##_command_aux(const void *ptr, void *data, \
+#define SLASH_COMMAND(CMD, DESC, ARGS, ARGS_DESC, COMPLETION) \
+  static int CMD##_command_aux(const void *ptr, void *data, \
     struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol); \
-    int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
-      COMMAND_DECLARATION(StartMafia)
-      COMMAND_DECLARATION(ReceiveMafia)
-
-      //COMMAND_DECLARATION(me)
+  int CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **arv_eol);
+#include "weechat-kolmafia-commands.h"
 
     private:
       class Channel;
