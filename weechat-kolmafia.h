@@ -55,7 +55,6 @@ namespace WeechatKolmafia
       Config *conf;
       std::map<std::string, std::string> nameDeuniquifies;
       std::map<std::string, Channel*> channels;
-      std::map<std::string, struct t_gui_buffer *> whispers;
 
       int HttpRequest(const std::string &url, std::string &outbuf);
       void HandleMessage(const Json::Value &msg);

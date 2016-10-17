@@ -101,6 +101,8 @@ namespace WeechatKolmafia
   // callbacks
   int Plugin::InputWhisperCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData)
   {
+    if(!PluginSingleton->beGood)
+      return WEECHAT_RC_ERROR;
     Plugin *plug = (Plugin *) ptr;
     (void) data;
     return plug->HandleInputWhisper(weebuf, inputData);
@@ -108,6 +110,8 @@ namespace WeechatKolmafia
 
   int Plugin::InputCliCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData)
   {
+    if(!PluginSingleton->beGood)
+      return WEECHAT_RC_ERROR;
     Plugin *plug = (Plugin *) ptr;
     (void) data;
     return plug->HandleInputCli(weebuf, inputData);
@@ -129,6 +133,8 @@ namespace WeechatKolmafia
 
   int Plugin::PollCallback(const void *ptr, void *data, int remainingCalls)
   {
+    if(!PluginSingleton->beGood)
+      return WEECHAT_RC_ERROR;
     Plugin *plug = (Plugin *) ptr;
     (void) data;
     (void) remainingCalls;
@@ -137,6 +143,8 @@ namespace WeechatKolmafia
 
   int Plugin::UpdateNicklistsCallback(const void *ptr, void *data, int remainingCalls)
   {
+    if(!PluginSingleton->beGood)
+      return WEECHAT_RC_ERROR;
     Plugin *plug = (Plugin *) ptr;
     (void) data;
     (void) remainingCalls;
@@ -167,6 +175,8 @@ namespace WeechatKolmafia
   int Plugin::PrintHtmlCallback(const void *ptr, void *dataptr, const char *command, int returnCode,
       const char *out, const char *err)
   {
+    if(!PluginSingleton->beGood)
+      return WEECHAT_RC_ERROR;
     (void) ptr;
     if(returnCode > 0 || returnCode == WEECHAT_HOOK_PROCESS_ERROR || out == nullptr)
     {
@@ -226,7 +236,7 @@ namespace WeechatKolmafia
 
     //weechat_printf(PluginSingleton->dbg, "Here's the situation:\n%s%s", out, parsed.c_str());
     weechat_printf_date_tags(data->buffer, data->when, data->tags,
-        "%s%s", data->prefix, parsed.c_str());
+        "%s\t%s", data->prefix, parsed.c_str());
 
     return WEECHAT_RC_OK;
   }
@@ -488,7 +498,6 @@ namespace WeechatKolmafia
   void Plugin::HandleMessage(const Json::Value &msg)
   {
     std::string sender = msg["who"]["name"].asString();
-    sender += '\t';
     std::string body = msg["msg"].asString();
     time_t when = std::stoul(msg["time"].asString());
     std::string tags("nick_");
@@ -497,11 +506,12 @@ namespace WeechatKolmafia
 
     if(type == "event")
     {
-      PrintHtml(events, body, when, "kol_event", "\t");
+      PrintHtml(events, body, when, "kol_event", nullptr);
     }
     else if(type == "system")
     {
-      PrintHtml(events, body, when, "kol_system", "\tSystem Message: ");
+      body.insert(0, "System Message: ");
+      PrintHtml(events, body, when, "kol_system", nullptr);
     }
     else if(type == "public")
     {
@@ -516,7 +526,6 @@ namespace WeechatKolmafia
           sender = weechat_color(weechat_config_string(weechat_config_get("weechat.color.chat_prefix_action")));
           sender += weechat_config_string(weechat_config_get("weechat.look.prefix_action"));
           sender += weechat_color("resetcolor");
-          sender += '\t';
           break;
         case 2: // system message
           // public system messages are no longer used, or so I have been told
@@ -687,7 +696,7 @@ namespace WeechatKolmafia
 
   int Plugin::HandleCloseWhisper(struct t_gui_buffer *weebuf)
   {
-    whispers.erase(NameUniquify(weechat_buffer_get_string(weebuf, "name")));
+    (void) weebuf;
     return WEECHAT_RC_OK;
   }
 
@@ -796,7 +805,6 @@ namespace WeechatKolmafia
     struct t_gui_buffer *buf = weechat_buffer_search("kol", encoded.c_str());
     if(buf == nullptr)
       buf = weechat_buffer_new(encoded.c_str(), InputWhisperCallback, this, nullptr, CloseWhisperCallback, this, nullptr);
-    whispers[name] = buf;
     return buf;
   }
 } // namespace WeechatKolmafia

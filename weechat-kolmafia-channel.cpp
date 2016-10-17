@@ -21,6 +21,8 @@ namespace WeechatKolmafia
 
   int Plugin::Channel::InputCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData)
   {
+    if(!PluginSingleton->beGood)
+      return WEECHAT_RC_ERROR;
     auto chan = (Plugin::Channel *) ptr;
     (void) data;
     (void) weebuf;
@@ -51,7 +53,7 @@ namespace WeechatKolmafia
     time_t now = time(nullptr);
     if(now - nicklistLastUpdated < 60 || (weechat_buffer_get_integer(buffer, "num_displayed") < 1 && nicklistLastUpdated != 0)) // only update if it's been a minute since last update and window is active (or hasn't been updated before
       return;
-    weechat_printf(PluginSingleton->dbg, "Updating %s nicklist", name.c_str());
+    //weechat_printf(PluginSingleton->dbg, "Updating %s nicklist", name.c_str());
     std::string message("/who ");
     message += weechat_buffer_get_string(buffer, "name");
     std::string res;
