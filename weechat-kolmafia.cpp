@@ -143,6 +143,27 @@ namespace WeechatKolmafia
     return plug->UpdateAllNicklists();
   }
 
+  namespace
+  {
+    struct FontState
+    {
+      FontState() : bold(false), italic(false), underlined(false), color("default") {}
+      void PutColor(std::string &str)
+      {
+        std::string assembled;
+        if(bold) assembled += '*';
+        if(italic) assembled += '/';
+        if(underlined) assembled += '_';
+        assembled += color;
+        str += weechat_color(assembled.c_str());
+      }
+      bool bold;
+      bool italic;
+      bool underlined;
+      std::string color;
+    };
+  }
+
   int Plugin::PrintHtmlCallback(const void *ptr, void *dataptr, const char *command, int returnCode,
       const char *out, const char *err)
   {
@@ -154,8 +175,10 @@ namespace WeechatKolmafia
       return WEECHAT_RC_ERROR;
     }
 
+    FontState state;
     PrintHtmlCallbackData *data = (PrintHtmlCallbackData *) dataptr;
     std::string parsed;
+
     const char *it = out;
     while(*it != '\0')
     {
@@ -174,17 +197,17 @@ namespace WeechatKolmafia
             ++it;
           }
           if(currcode == "3")
-            parsed += weechat_color("italic");
+            state.italic = true;
           else if(currcode == "23")
-            parsed += weechat_color("-italic");
+            state.italic = false;
           else if(currcode.size() == 2 && currcode[0] == '3')
           {
-            std::string colorstr("|");
-            colorstr += currcode[1];
-            parsed += weechat_color(colorstr.c_str());
+            state.color = currcode[1];
           }
           else
             weechat_printf(PluginSingleton->dbg, "Unhandled ansi escape [%s]", currcode.c_str());
+
+          state.PutColor(parsed);
         }
         else
         {
@@ -193,7 +216,11 @@ namespace WeechatKolmafia
         }
       }
       else
+      {
+        if(*it == '\n')
+          parsed += weechat_color("reset");
         parsed += *it;
+      }
       ++it;
     }
 
