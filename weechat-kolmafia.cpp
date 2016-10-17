@@ -550,18 +550,18 @@ namespace WeechatKolmafia
   void Plugin::PrintHtml(struct t_gui_buffer *buffer, const std::string &html, time_t when /*= 0*/,
       const char *tags /*= nullptr*/, const char *prefix /*= nullptr*/)
   {
-    std::string command("~/Sandbox/weechat-kolmafia/parse-html.sh \"");
+    std::string command("~/Sandbox/weechat-kolmafia/parse-html.sh '");
     for(auto it = html.begin(); it != html.end(); ++it)
     {
-      if(*it == '"')
+      if(*it == '\'')
         command += '\\';
+
       if(*it != '\n')
         command += *it;
-      else command += ' ';
-      if(*it == '!')
+      else
         command += ' ';
     }
-    command += '"';
+    command += '\'';
     PrintHtmlCallbackData *data = (PrintHtmlCallbackData *) malloc(sizeof(PrintHtmlCallbackData));
     data->buffer = buffer;
     data->when = when;
