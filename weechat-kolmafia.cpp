@@ -554,12 +554,11 @@ namespace WeechatKolmafia
     for(auto it = html.begin(); it != html.end(); ++it)
     {
       if(*it == '\'')
-        command += '\\';
-
-      if(*it != '\n')
-        command += *it;
-      else
+        command += "'\"'\"'";
+      else if(*it == '\n')
         command += ' ';
+      else
+        command += *it;
     }
     command += '\'';
     PrintHtmlCallbackData *data = (PrintHtmlCallbackData *) malloc(sizeof(PrintHtmlCallbackData));
