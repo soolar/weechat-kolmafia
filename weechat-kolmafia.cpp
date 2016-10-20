@@ -3,7 +3,6 @@
 #include "weechat-kolmafia-channel.h"
 #include <string>
 #include <time.h>
-#include <curl/curl.h>
 #include "json/json.h"
 #include <htmlcxx/html/ParserDom.h>
 #include <htmlcxx/html/utils.h>
@@ -25,16 +24,6 @@ WeechatKolmafia::Plugin *PluginSingleton = nullptr;
 
 namespace
 {
-  int Writer(char *data, size_t size, size_t nmemb, std::string *writerData)
-  {
-    if(writerData == nullptr)
-      return 0;
-
-    writerData->append(data, size*nmemb);
-
-    return size * nmemb;
-  }
-
   struct PrintHtmlCallbackData
   {
     struct t_gui_buffer *buffer;
@@ -68,7 +57,6 @@ namespace WeechatKolmafia
   {
     PluginSingleton = this;
 
-    curl_global_init(CURL_GLOBAL_ALL);
     lastSeen = "0";
 
     dbg = weechat_buffer_new("debug", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
@@ -94,8 +82,6 @@ namespace WeechatKolmafia
     weechat_unhook(updateNicklistsHook);
 
     delete conf;
-
-    curl_global_cleanup();
   }
 
   // callbacks
@@ -348,86 +334,32 @@ namespace WeechatKolmafia
   }
 
   // private
-  int Plugin::HttpRequest(const std::string &url, std::string &outbuf)
+  int Plugin::HttpRequest(const std::string &url, HttpRequestCallback callback,
+      const void *ptr /*= nullptr*/, void *data /*= nullptr*/)
   {
+    if(!beGood)
+      return WEECHAT_RC_ERROR;
     //weechat_printf(dbg, "GET %s", url.c_str());
-    CURL *curl;
-    CURLcode res;
-    char errorBuffer[CURL_ERROR_SIZE];
 
-    curl = curl_easy_init();
-    if(!curl)
-    {
-      weechat_printf(dbg, "Failed to initialize curl.");
+    struct t_hashtable *options = weechat_hashtable_new(
+        16, WEECHAT_HASHTABLE_STRING, WEECHAT_HASHTABLE_STRING, nullptr, nullptr);
+    if(options == nullptr)
       return WEECHAT_RC_ERROR;
-    }
-    res = curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "Failed to set error buffer [%d]", res);
-      return WEECHAT_RC_ERROR;
-    }
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "Failed to set url [%s]", errorBuffer);
-      return WEECHAT_RC_ERROR;
-    }
-    res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, Writer);
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "Failed to set writer [%s]", errorBuffer);
-      return WEECHAT_RC_ERROR;
-    }
-    res = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &outbuf);
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "Failed to set write data [%s]", errorBuffer);
-      return WEECHAT_RC_ERROR;
-    }
-    res = curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 500);
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "Failed to set timeout [%s]", errorBuffer);
-      return WEECHAT_RC_ERROR;
-    }
-    struct curl_slist *list = nullptr;
-    list = curl_slist_append(list, "Connection: keep-alive");
-    list = curl_slist_append(list, "Accept: application/json, text/javascript, */*; q=0.01");
-    list = curl_slist_append(list, "X-Requested-With: XMLHttpRequest");
-    list = curl_slist_append(list, "Accept-Language: en-US,en;q=0.8");
-    res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "Failed to set http header [%s]", errorBuffer);
-      return WEECHAT_RC_ERROR;
-    }
-    res = curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.116 Safari/537.36");
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "Failed to set user agent [%s]", errorBuffer);
-      return WEECHAT_RC_ERROR;
-    }
-    res = curl_easy_setopt(curl, CURLOPT_REFERER, "http://127.0.0.1:60080/mchat.php");
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "Failed to set referer [%s]", errorBuffer);
-      return WEECHAT_RC_ERROR;
-    }
-    res = curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "gzip, deflate, sdch");
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "Failed to set accept-encoding [%s]", errorBuffer);
-      return WEECHAT_RC_ERROR;
-    }
+    weechat_hashtable_set(options, "timeout_ms", "30000");
+    weechat_hashtable_set(options, "httpheader",
+        "Connection: keep-alive\n"
+        "Accept: application/json, text/javascript, */*; q=0.01\n"
+        "X-Requested-With: XMLHttpRequest\n"
+        "Accept-Language: en-US,en;q=0.8");
+    weechat_hashtable_set(options, "useragent", "Mozilla/5.0 (X11; Linux x86_64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.116 Safari/537.36");
+    weechat_hashtable_set(options, "referer", "http://127.0.0.1:60080/mchat.php");
+    weechat_hashtable_set(options, "accept_encoding", "gzip, deflate, sdch");
 
-    res = curl_easy_perform(curl);
-    if(res != CURLE_OK)
-    {
-      weechat_printf(dbg, "curl_easy_perform(%s) failed: %s", url.c_str(), errorBuffer);
-      return WEECHAT_RC_ERROR;
-    }
-    curl_easy_cleanup(curl);
+    std::string process("url:");
+    process += url;
+    weechat_hook_process_hashtable(process.c_str(), options, 30000, callback, ptr, data);
+    weechat_hashtable_free(options);
 
     return WEECHAT_RC_OK;
   }
@@ -499,7 +431,15 @@ namespace WeechatKolmafia
   {
     std::string sender = msg["who"]["name"].asString();
     std::string body = msg["msg"].asString();
-    time_t when = std::stoul(msg["time"].asString());
+    time_t when;
+    try
+    {
+      when = std::stoul(msg["time"].asString());
+    }
+    catch (std::exception)
+    {
+      when = 0;
+    }
     std::string tags("nick_");
     tags += NameUniquify(sender);
     std::string type = msg["type"].asString();
@@ -639,7 +579,8 @@ namespace WeechatKolmafia
     return nameDeuniquifies[name];
   }
 
-  int Plugin::SubmitMessage(const std::string &message, std::string &outbuf)
+  int Plugin::SubmitMessage(const std::string &message, HttpRequestCallback callback,
+      const void *ptr /*= nullptr*/, void *data /*= nullptr*/)
   {
     UpdateSession();
 
@@ -651,26 +592,33 @@ namespace WeechatKolmafia
     url += UrlEncode(message);
     url += "&j=1";
 
-    if(HttpRequest(url, outbuf) != WEECHAT_RC_OK)
+    if(HttpRequest(url, callback, ptr, data) != WEECHAT_RC_OK)
       return WEECHAT_RC_ERROR;
 
     return WEECHAT_RC_OK;
   }
 
-  int Plugin::SubmitMessage(const std::string &message, struct t_gui_buffer *buffer)
+  int Plugin::SubmitGenericCallback(const void *ptr, void *data,
+      const char *command, int returnCode, const char *out, const char *err)
   {
-    std::string res;
-    if(SubmitMessage(message, res) == WEECHAT_RC_ERROR)
-      return WEECHAT_RC_ERROR;
-
-    //weechat_printf(dbg,"%s",buffer.c_str());
+    (void) data;
+    (void) command;
+    (void) returnCode; // TODO: Look at this
+    (void) err; // TODO: also this
+    if(out == nullptr) return WEECHAT_RC_ERROR;
+    struct t_gui_buffer *buffer = (struct t_gui_buffer *) ptr;
     Json::Value v;
     Json::Reader r;
-    r.parse(res, v);
+    r.parse(out, v);
     std::string output = v["output"].asString();
     if(!output.empty())
-      PrintHtml(buffer, output);
+      PluginSingleton->PrintHtml(buffer, output);
     return WEECHAT_RC_OK;
+  }
+
+  int Plugin::SubmitMessage(const std::string &message, struct t_gui_buffer *buffer)
+  {
+    return SubmitMessage(message, SubmitGenericCallback, buffer, nullptr);
   }
 
   int Plugin::HandleInputWhisper(struct t_gui_buffer *weebuf, const char *inputData)
@@ -682,8 +630,7 @@ namespace WeechatKolmafia
 
     weechat_printf(weebuf, "%s\t%s", weechat_config_string(conf->session.playername), inputData);
 
-    std::string buffer;
-    return SubmitMessage(message, buffer);
+    return SubmitMessage(message, weebuf);
   }
 
   int Plugin::HandleInputCli(struct t_gui_buffer *weebuf, const char *inputData)
@@ -706,6 +653,31 @@ namespace WeechatKolmafia
     return WEECHAT_RC_OK;
   }
 
+  int Plugin::SessInitParseListensCallback(const void *ptr, void *data,
+      const char *command, int returnCode, const char *out, const char *err)
+  {
+    (void) ptr;
+    (void) data;
+    (void) command;
+    (void) returnCode;
+    (void) err;
+
+    if(out == nullptr) return WEECHAT_RC_ERROR;
+    Json::Value v;
+    Json::Reader r;
+    r.parse(out, v);
+    std::istringstream ss(PluginSingleton->HtmlToWeechat(v["output"].asString()));
+    std::string line;
+    while(std::getline(ss, line))
+    {
+      if(line.size() > 2 && line[0] == ' ' && line[1] == ' ')
+      {
+        PluginSingleton->GetChannel(line.substr(2));
+      }
+    }
+    return WEECHAT_RC_OK;
+  }
+
   void Plugin::HandleMafiaEscape(const std::string &key, const std::string &value)
   {
     if(key == "HASH")
@@ -717,24 +689,39 @@ namespace WeechatKolmafia
     else if(key == "SESSINIT")
     {
       // open buffers for all currently listened channels
-      std::string res;
-      if(SubmitMessage("/l", res) != WEECHAT_RC_ERROR)
-      {
-        Json::Value v;
-        Json::Reader r;
-        r.parse(res, v);
-        std::istringstream ss(HtmlToWeechat(v["output"].asString()));
-        while(std::getline(ss, res))
-        {
-          if(res.size() > 2 && res[0] == ' ' && res[1] == ' ')
-          {
-            GetChannel(res.substr(2));
-          }
-        }
-      }
+      SubmitMessage("/l", SessInitParseListensCallback);
     }
     else
       weechat_printf(dbg, "Unknown mafia escape [%s=%s]", key.c_str(), value.c_str());
+  }
+
+  int Plugin::PollHandlingCallback(const void *ptr, void *data,
+      const char *command, int returnCode, const char *out, const char *err)
+  {
+    if(!PluginSingleton->beGood)
+      return WEECHAT_RC_ERROR;
+
+    (void) ptr;
+    (void) data;
+    (void) command;
+    (void) returnCode;
+    (void) err; // TODO: Check this and returnCode
+
+    if(out == nullptr) return WEECHAT_RC_ERROR;
+    Json::Value v;
+    Json::Reader r;
+    r.parse(out, v);
+    Json::Value msgs = v["msgs"];
+
+    PluginSingleton->lastSeen = v["last"].asString();
+    PluginSingleton->SetPollDelay(v["delay"].asInt64());
+
+    for(Json::ArrayIndex i = 0; i < msgs.size(); ++i)
+    {
+      PluginSingleton->HandleMessage(msgs[i]);
+    }
+
+    return WEECHAT_RC_OK;
   }
 
   int Plugin::PollMessages()
@@ -743,25 +730,7 @@ namespace WeechatKolmafia
     url += std::to_string(distribution(generator));
     url += "&j=1&lasttime=";
     url += lastSeen;
-    std::string buffer;
-    if(HttpRequest(url, buffer) != WEECHAT_RC_OK)
-      return WEECHAT_RC_ERROR;
-
-    //weechat_printf(dbg, "%s", buffer.c_str());
-    Json::Value v;
-    Json::Reader r;
-    r.parse(buffer, v);
-    Json::Value msgs = v["msgs"];
-
-    lastSeen = v["last"].asString();
-    SetPollDelay(v["delay"].asInt64());
-
-    for(Json::ArrayIndex i = 0; i < msgs.size(); ++i)
-    {
-      HandleMessage(msgs[i]);
-    }
-
-    return WEECHAT_RC_OK;
+    return HttpRequest(url, PollHandlingCallback);
   }
 
   int Plugin::UpdateAllNicklists()

@@ -14,6 +14,8 @@ namespace WeechatKolmafia
       static int InputCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf, const char *inputData);
       static int CloseCallback(const void *ptr, void *data, struct t_gui_buffer *weebuf);
 
+      static int ParseNamesCallback(const void *ptr, void *data,
+          const char *command, int returnCode, const char *out, const char *err);
       void UpdateNicklist();
 
       void WriteMessage(time_t when, const std::string &sender, const std::string &message, const std::string &tags);

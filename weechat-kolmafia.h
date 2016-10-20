@@ -56,7 +56,10 @@ namespace WeechatKolmafia
       std::map<std::string, std::string> nameDeuniquifies;
       std::map<std::string, Channel*> channels;
 
-      int HttpRequest(const std::string &url, std::string &outbuf);
+      typedef int (*HttpRequestCallback)(const void *pointer, void *data,
+          const char *command, int returnCode, const char *out, const char *err);
+      int HttpRequest(const std::string &url, HttpRequestCallback callback,
+          const void *ptr = nullptr, void *data = nullptr);
       void HandleMessage(const Json::Value &msg);
       void PrintHtml(struct t_gui_buffer *buffer, const std::string &html, time_t when = 0,
           const char *tags = nullptr, const char *prefix = nullptr);
@@ -67,13 +70,20 @@ namespace WeechatKolmafia
       std::string NameUniquify(const std::string &name);
       std::string NameDeuniquify(const std::string &name);
       std::string HtmlToWeechat(const std::string &html);
-      int SubmitMessage(const std::string &message, std::string &outbuf);
+      int SubmitMessage(const std::string &message, HttpRequestCallback callback,
+          const void *ptr = nullptr, void *data = nullptr);
+      static int SubmitGenericCallback(const void *ptr, void *data,
+          const char *command, int returnCode, const char *out, const char *err);
       int SubmitMessage(const std::string &message, struct t_gui_buffer *buffer);
       int HandleInputWhisper(struct t_gui_buffer *weebuf, const char *input_data);
       int HandleInputCli(struct t_gui_buffer *weebuf, const char *input_data);
       int HandleCloseWhisper(struct t_gui_buffer *weebuf);
       int HandleCloseCli(struct t_gui_buffer *weebuf);
+      static int SessInitParseListensCallback(const void *ptr, void *data,
+          const char *command, int returnCode, const char *out, const char *err);
       void HandleMafiaEscape(const std::string &key, const std::string &value);
+      static int PollHandlingCallback(const void *ptr, void *data,
+          const char *command, int returnCode, const char *out, const char *err);
       int PollMessages();
 
       int SetPollDelay(long newDelay);
