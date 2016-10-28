@@ -51,6 +51,9 @@ namespace WeechatKolmafia
   int Plugin::Channel::ParseNamesCallback(const void *ptr, void *data,
       const char *command, int returnCode, const char *out, const char *err)
   {
+    if(!PluginSingleton->beGood)
+      return WEECHAT_RC_ERROR;
+
     (void) data;
     (void) command;
     (void) returnCode;

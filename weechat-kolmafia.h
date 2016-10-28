@@ -56,6 +56,12 @@ namespace WeechatKolmafia
       std::map<std::string, std::string> nameDeuniquifies;
       std::map<std::string, Channel*> channels;
 
+      struct t_hook *kolmafiaHook;
+      bool kolmafiaRunning;
+      static int MafiaOutputAvailableCallback(const void *ptr, void *data, const char *command,
+          int returnCode, const char *out, const char *err);
+      int ProvideMafiaInput(const std::string &str);
+
       typedef int (*HttpRequestCallback)(const void *pointer, void *data,
           const char *command, int returnCode, const char *out, const char *err);
       int HttpRequest(const std::string &url, HttpRequestCallback callback,

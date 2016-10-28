@@ -53,7 +53,8 @@ namespace WeechatKolmafia
 {
   // public
   Plugin::Plugin()
-    : conf(new Plugin::Config()),  pollHook(nullptr),  delay(0), distribution(0.0, 1.0), beGood(true)
+    : conf(new Plugin::Config()), kolmafiaHook(nullptr), kolmafiaRunning(false), pollHook(nullptr),
+      delay(0), distribution(0.0, 1.0), beGood(true)
   {
     PluginSingleton = this;
 
@@ -64,8 +65,7 @@ namespace WeechatKolmafia
     cli = weechat_buffer_new("mafia", InputCliCallback, this, nullptr, CloseCliCallback, this, nullptr);
     weechat_buffer_set(dbg, "notify", "0");
 
-    UpdateSession();
-    weechat_command(dbg, "/exec -in kolmafia ashq print(\"@WEECHAT@SESSINIT=true\");");
+    StartMafia_command(nullptr, 0, nullptr, nullptr);
 
     SetPollDelay(3000);
     updateNicklistsHook = weechat_hook_timer(1000, 1, 0, UpdateNicklistsCallback, this, nullptr);
@@ -76,10 +76,10 @@ namespace WeechatKolmafia
 
   Plugin::~Plugin()
   {
+    ProvideMafiaInput("quit");
     beGood = false;
 
-    weechat_unhook(pollHook);
-    weechat_unhook(updateNicklistsHook);
+    weechat_unhook_all(nullptr);
 
     delete conf;
   }
@@ -231,70 +231,91 @@ namespace WeechatKolmafia
 #define COMMAND_FUNCTION(CMD) int Plugin::CMD##_command_aux(const void *ptr, void *data, struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol) { (void) data; Plugin *plug = (Plugin *) ptr; return plug->CMD##_command(weebuf, argc, argv, argv_eol); } int Plugin::CMD##_command(struct t_gui_buffer *weebuf, int argc, char **argv, char **argv_eol)
   COMMAND_FUNCTION(StartMafia)
   {
-    (void) weebuf;
     (void) argc;
     (void) argv;
     (void) argv_eol;
 
-    // TODO: Make sure mafia isn't already running
-    weechat_command(dbg, "/exec -sh -stdin -pipe /ReceiveMafia -noln -norc -name kolmafia mafia");
+    if(kolmafiaRunning)
+    {
+      weechat_printf(weebuf, "Mafia is already running, ya dingus");
+      return WEECHAT_RC_ERROR;
+    }
+    struct t_hashtable *options = weechat_hashtable_new(8, WEECHAT_HASHTABLE_STRING,
+        WEECHAT_HASHTABLE_STRING, nullptr, nullptr);
+    weechat_hashtable_set(options, "stdin", "1");
+    weechat_hashtable_set(options, "buffer_flush", "1");
+    kolmafiaHook = weechat_hook_process_hashtable("mafia", options, 0,
+        MafiaOutputAvailableCallback, nullptr, nullptr);
+    weechat_hashtable_free(options);
+    kolmafiaRunning = true;
     UpdateSession();
-    weechat_command(dbg, "/exec -in kolmafia ashq print(\"@WEECHAT@SESSINIT=true\");");
+    ProvideMafiaInput("ashq print(\"@WEECHAT@SESSINIT=true\");");
     return WEECHAT_RC_OK;
   }
 
-  COMMAND_FUNCTION(ReceiveMafia)
+  int Plugin::MafiaOutputAvailableCallback(const void *ptr, void *data, const char *command,
+      int returnCode, const char *out, const char *err)
   {
-    (void) weebuf;
-    (void) argv;
-    if(argc < 2)
-      return WEECHAT_RC_ERROR;
-
-    std::string text(argv_eol[1]);
-
-    if(!text.empty())
+    (void) err; // TODO: check dis
+    (void) ptr;
+    (void) data;
+    (void) command;
+    if(returnCode >= 0)
     {
-      // strip out ANSI codes
-      size_t pos = text.find("\e[");
-      while(pos != std::string::npos)
-      {
-        size_t endpos = text.find('m', pos);
-        text.erase(pos, endpos - pos + 1);
-        pos = text.find("\e[");
-      }
-
-      if(text.length() > 1 && text[0] == '>')
-        text = text.substr(1);
-      if(text.length() > 1 && text[0] == ' ')
-        text = text.substr(1);
-
-      std::istringstream ss(weechat_config_string(conf->look.cli_message_blacklist));
-      std::string blacklisted;
-      while(std::getline(ss, blacklisted, '~'))
-      {
-        if(text.find(blacklisted) != std::string::npos)
-          return WEECHAT_RC_OK;
-      }
-
-      static const std::string escapeSequence("@WEECHAT@");
-      pos = text.find(escapeSequence);
-      if(pos != std::string::npos)
-      {
-        std::string message(text.substr(pos + escapeSequence.length()));
-        //weechat_printf(dbg, "Escape code received from mafia [%s]", message.c_str());
-        size_t split = message.find_first_of('=');
-        if(split != std::string::npos && split > 0)
-        {
-          std::string key = message.substr(0, split);
-          std::string value = message.substr(split + 1);
-          HandleMafiaEscape(key, value);
-        }
-        return WEECHAT_RC_OK;
-      }
-
-      PrintHtml(cli, text);
+      PluginSingleton->kolmafiaRunning = false;
+      return WEECHAT_RC_OK;
     }
 
+    if(out == nullptr)
+      return WEECHAT_RC_ERROR;
+
+    std::istringstream is(out);
+    std::string text;
+    while(std::getline(is, text))
+    {
+      while(text.length() > 1 && text[0] == ' ')
+        text = text.substr(1);
+
+      if(!text.empty() && text != "> ")
+      {
+        std::istringstream ss(weechat_config_string(PluginSingleton->conf->look.cli_message_blacklist));
+        std::string blacklisted;
+        while(std::getline(ss, blacklisted, '~'))
+        {
+          if(text.find(blacklisted) != std::string::npos)
+            return WEECHAT_RC_OK;
+        }
+
+        static const std::string escapeSequence("@WEECHAT@");
+        size_t pos = text.find(escapeSequence);
+        if(pos != std::string::npos)
+        {
+          std::string message(text.substr(pos + escapeSequence.length()));
+          //weechat_printf(dbg, "Escape code received from mafia [%s]", message.c_str());
+          size_t split = message.find_first_of('=');
+          if(split != std::string::npos && split > 0)
+          {
+            std::string key = message.substr(0, split);
+            std::string value = message.substr(split + 1);
+            PluginSingleton->HandleMafiaEscape(key, value);
+          }
+          return WEECHAT_RC_OK;
+        }
+
+        PluginSingleton->PrintHtml(PluginSingleton->cli, text);
+      }
+    }
+
+    return WEECHAT_RC_OK;
+  }
+
+  int Plugin::ProvideMafiaInput(const std::string &str)
+  {
+    weechat_printf(dbg, "kolmafia input %s", str.c_str());
+    if(!kolmafiaRunning)
+      return WEECHAT_RC_ERROR;
+    std::string input(str + '\n');
+    weechat_hook_set(kolmafiaHook, "stdin", input.c_str());
     return WEECHAT_RC_OK;
   }
 
@@ -337,7 +358,7 @@ namespace WeechatKolmafia
   int Plugin::HttpRequest(const std::string &url, HttpRequestCallback callback,
       const void *ptr /*= nullptr*/, void *data /*= nullptr*/)
   {
-    if(!beGood)
+    if(!beGood || !kolmafiaRunning)
       return WEECHAT_RC_ERROR;
     //weechat_printf(dbg, "GET %s", url.c_str());
 
@@ -522,14 +543,16 @@ namespace WeechatKolmafia
       std::strcpy(data->prefix, prefix);
     else
       data->prefix[0] = '\0';
-    weechat_printf(dbg, "\t%s", command.c_str());
+    //weechat_printf(dbg, "\t%s", command.c_str());
     weechat_hook_process(command.c_str(), 30000, PrintHtmlCallback, nullptr, data);
   }
 
   void Plugin::UpdateSession()
   {
-    weechat_command(dbg, "/exec -in kolmafia ashq print(\"@WEECHAT@HASH=\" + my_hash()); "
-        "print(\"@WEECHAT@ID=\" + my_id()); print(\"@WEECHAT@NAME=\" + my_name());");
+    ProvideMafiaInput("ashq "
+        "print(\"@WEECHAT@HASH=\" + my_hash()); "
+        "print(\"@WEECHAT@ID=\" + my_id()); "
+        "print(\"@WEECHAT@NAME=\" + my_name());");
   }
 
   std::string Plugin::UrlEncode(const std::string &text)
@@ -601,6 +624,8 @@ namespace WeechatKolmafia
   int Plugin::SubmitGenericCallback(const void *ptr, void *data,
       const char *command, int returnCode, const char *out, const char *err)
   {
+    if(!PluginSingleton->beGood)
+      return WEECHAT_RC_ERROR;
     (void) data;
     (void) command;
     (void) returnCode; // TODO: Look at this
@@ -618,11 +643,21 @@ namespace WeechatKolmafia
 
   int Plugin::SubmitMessage(const std::string &message, struct t_gui_buffer *buffer)
   {
+    if(!kolmafiaRunning)
+    {
+      weechat_printf(buffer, "Can't very well submit something if mafia isn't running, can we?");
+      return WEECHAT_RC_ERROR;
+    }
     return SubmitMessage(message, SubmitGenericCallback, buffer, nullptr);
   }
 
   int Plugin::HandleInputWhisper(struct t_gui_buffer *weebuf, const char *inputData)
   {
+    if(!kolmafiaRunning)
+    {
+      weechat_printf(weebuf, "Start kolmafia if you want to chat");
+      return WEECHAT_RC_ERROR;
+    }
     std::string message("/msg ");
     message += weechat_buffer_get_string(weebuf, "name");
     message += " ";
@@ -635,10 +670,8 @@ namespace WeechatKolmafia
 
   int Plugin::HandleInputCli(struct t_gui_buffer *weebuf, const char *inputData)
   {
-    std::string command("/exec -in kolmafia ");
-    command += inputData;
     weechat_printf(weebuf, "\t%s> %s", weechat_color("green"), inputData);
-    return weechat_command(weebuf, command.c_str());
+    return ProvideMafiaInput(inputData);
   }
 
   int Plugin::HandleCloseWhisper(struct t_gui_buffer *weebuf)
